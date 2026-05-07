@@ -1,0 +1,2 @@
+com.superasync.client.SuperAsyncClientAutoConfiguration
+com.superasync.worker.config.SuperAsyncWorkerAutoConfiguration

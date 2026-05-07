@@ -1,0 +1,351 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  org.slf4j.Logger
+ *  org.slf4j.LoggerFactory
+ *  org.springframework.transaction.annotation.Transactional
+ *  org.springframework.web.bind.annotation.PostMapping
+ *  org.springframework.web.bind.annotation.RequestBody
+ *  org.springframework.web.bind.annotation.RequestMapping
+ *  org.springframework.web.bind.annotation.RestController
+ */
+package com.superasync.controller;
+
+import com.superasync.dto.Result;
+import com.superasync.entity.AsyncTaskEntity;
+import com.superasync.repository.AsyncTaskRepository;
+import java.time.OffsetDateTime;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping(value={"/v1/worker"})
+public class WorkerController {
+    private static final Logger log = LoggerFactory.getLogger(WorkerController.class);
+    private final AsyncTaskRepository taskRepository;
+
+    @PostMapping(value={"/poll"})
+    @Transactional
+    public Result<WorkerTask> poll(@RequestBody PollRequest request) {
+        if (request.getTags() == null || request.getTags().isEmpty()) {
+            return Result.error(400, "tags \u4e0d\u80fd\u4e3a\u7a7a");
+        }
+        AsyncTaskEntity task = null;
+        for (String tag : request.getTags()) {
+            task = this.taskRepository.pollWorkerTask(OffsetDateTime.now(), tag);
+            if (task == null) continue;
+            break;
+        }
+        if (task == null) {
+            return Result.success(null);
+        }
+        this.taskRepository.lockTask(task.getId(), request.getWorkerId());
+        WorkerTask wt = new WorkerTask();
+        wt.setTaskId(task.getId());
+        wt.setTaskType(task.getTaskType());
+        wt.setTaskKey(task.getTaskKey());
+        wt.setPayload(task.getPayload());
+        wt.setRetryCount(task.getRetryCount());
+        wt.setMaxRetry(task.getMaxRetry());
+        return Result.success(wt);
+    }
+
+    @PostMapping(value={"/complete"})
+    @Transactional
+    public Result<Void> complete(@RequestBody CompleteRequest request) {
+        AsyncTaskEntity task = this.taskRepository.findByTaskId(request.getTaskId());
+        if (task == null) {
+            return Result.error(404, "\u4efb\u52a1\u4e0d\u5b58\u5728");
+        }
+        if (request.isSuccess()) {
+            this.taskRepository.completeTask(task.getId(), "SUCCESS", request.getPayload(), null);
+            log.info("[WorkerController] Task {} completed by worker", (Object)request.getTaskId());
+        } else if (task.getRetryCount() < task.getMaxRetry()) {
+            this.taskRepository.markForRetry(task.getId(), OffsetDateTime.now().plusSeconds(10L));
+            log.warn("[WorkerController] Task {} failed, scheduled retry {}/{}", new Object[]{request.getTaskId(), task.getRetryCount() + 1, task.getMaxRetry()});
+        } else {
+            this.taskRepository.completeTask(task.getId(), "FAIL", request.getPayload(), request.getErrorMsg());
+            log.error("[WorkerController] Task {} failed after all retries", (Object)request.getTaskId());
+        }
+        return Result.success();
+    }
+
+    public WorkerController(AsyncTaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
+    }
+
+    public static class PollRequest {
+        private String workerId;
+        private List<String> tags;
+
+        public String getWorkerId() {
+            return this.workerId;
+        }
+
+        public List<String> getTags() {
+            return this.tags;
+        }
+
+        public void setWorkerId(String workerId) {
+            this.workerId = workerId;
+        }
+
+        public void setTags(List<String> tags) {
+            this.tags = tags;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            }
+            if (!(o instanceof PollRequest)) {
+                return false;
+            }
+            PollRequest other = (PollRequest)o;
+            if (!other.canEqual(this)) {
+                return false;
+            }
+            String this$workerId = this.getWorkerId();
+            String other$workerId = other.getWorkerId();
+            if (this$workerId == null ? other$workerId != null : !this$workerId.equals(other$workerId)) {
+                return false;
+            }
+            List<String> this$tags = this.getTags();
+            List<String> other$tags = other.getTags();
+            return !(this$tags == null ? other$tags != null : !((Object)this$tags).equals(other$tags));
+        }
+
+        protected boolean canEqual(Object other) {
+            return other instanceof PollRequest;
+        }
+
+        public int hashCode() {
+            int PRIME = 59;
+            int result = 1;
+            String $workerId = this.getWorkerId();
+            result = result * 59 + ($workerId == null ? 43 : $workerId.hashCode());
+            List<String> $tags = this.getTags();
+            result = result * 59 + ($tags == null ? 43 : ((Object)$tags).hashCode());
+            return result;
+        }
+
+        public String toString() {
+            return "WorkerController.PollRequest(workerId=" + this.getWorkerId() + ", tags=" + String.valueOf(this.getTags()) + ")";
+        }
+    }
+
+    public static class WorkerTask {
+        private Long taskId;
+        private String taskType;
+        private String taskKey;
+        private String payload;
+        private int retryCount;
+        private int maxRetry;
+
+        public Long getTaskId() {
+            return this.taskId;
+        }
+
+        public String getTaskType() {
+            return this.taskType;
+        }
+
+        public String getTaskKey() {
+            return this.taskKey;
+        }
+
+        public String getPayload() {
+            return this.payload;
+        }
+
+        public int getRetryCount() {
+            return this.retryCount;
+        }
+
+        public int getMaxRetry() {
+            return this.maxRetry;
+        }
+
+        public void setTaskId(Long taskId) {
+            this.taskId = taskId;
+        }
+
+        public void setTaskType(String taskType) {
+            this.taskType = taskType;
+        }
+
+        public void setTaskKey(String taskKey) {
+            this.taskKey = taskKey;
+        }
+
+        public void setPayload(String payload) {
+            this.payload = payload;
+        }
+
+        public void setRetryCount(int retryCount) {
+            this.retryCount = retryCount;
+        }
+
+        public void setMaxRetry(int maxRetry) {
+            this.maxRetry = maxRetry;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            }
+            if (!(o instanceof WorkerTask)) {
+                return false;
+            }
+            WorkerTask other = (WorkerTask)o;
+            if (!other.canEqual(this)) {
+                return false;
+            }
+            if (this.getRetryCount() != other.getRetryCount()) {
+                return false;
+            }
+            if (this.getMaxRetry() != other.getMaxRetry()) {
+                return false;
+            }
+            Long this$taskId = this.getTaskId();
+            Long other$taskId = other.getTaskId();
+            if (this$taskId == null ? other$taskId != null : !((Object)this$taskId).equals(other$taskId)) {
+                return false;
+            }
+            String this$taskType = this.getTaskType();
+            String other$taskType = other.getTaskType();
+            if (this$taskType == null ? other$taskType != null : !this$taskType.equals(other$taskType)) {
+                return false;
+            }
+            String this$taskKey = this.getTaskKey();
+            String other$taskKey = other.getTaskKey();
+            if (this$taskKey == null ? other$taskKey != null : !this$taskKey.equals(other$taskKey)) {
+                return false;
+            }
+            String this$payload = this.getPayload();
+            String other$payload = other.getPayload();
+            return !(this$payload == null ? other$payload != null : !this$payload.equals(other$payload));
+        }
+
+        protected boolean canEqual(Object other) {
+            return other instanceof WorkerTask;
+        }
+
+        public int hashCode() {
+            int PRIME = 59;
+            int result = 1;
+            result = result * 59 + this.getRetryCount();
+            result = result * 59 + this.getMaxRetry();
+            Long $taskId = this.getTaskId();
+            result = result * 59 + ($taskId == null ? 43 : ((Object)$taskId).hashCode());
+            String $taskType = this.getTaskType();
+            result = result * 59 + ($taskType == null ? 43 : $taskType.hashCode());
+            String $taskKey = this.getTaskKey();
+            result = result * 59 + ($taskKey == null ? 43 : $taskKey.hashCode());
+            String $payload = this.getPayload();
+            result = result * 59 + ($payload == null ? 43 : $payload.hashCode());
+            return result;
+        }
+
+        public String toString() {
+            return "WorkerController.WorkerTask(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ")";
+        }
+    }
+
+    public static class CompleteRequest {
+        private Long taskId;
+        private boolean success;
+        private String payload;
+        private String errorMsg;
+
+        public Long getTaskId() {
+            return this.taskId;
+        }
+
+        public boolean isSuccess() {
+            return this.success;
+        }
+
+        public String getPayload() {
+            return this.payload;
+        }
+
+        public String getErrorMsg() {
+            return this.errorMsg;
+        }
+
+        public void setTaskId(Long taskId) {
+            this.taskId = taskId;
+        }
+
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+
+        public void setPayload(String payload) {
+            this.payload = payload;
+        }
+
+        public void setErrorMsg(String errorMsg) {
+            this.errorMsg = errorMsg;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            }
+            if (!(o instanceof CompleteRequest)) {
+                return false;
+            }
+            CompleteRequest other = (CompleteRequest)o;
+            if (!other.canEqual(this)) {
+                return false;
+            }
+            if (this.isSuccess() != other.isSuccess()) {
+                return false;
+            }
+            Long this$taskId = this.getTaskId();
+            Long other$taskId = other.getTaskId();
+            if (this$taskId == null ? other$taskId != null : !((Object)this$taskId).equals(other$taskId)) {
+                return false;
+            }
+            String this$payload = this.getPayload();
+            String other$payload = other.getPayload();
+            if (this$payload == null ? other$payload != null : !this$payload.equals(other$payload)) {
+                return false;
+            }
+            String this$errorMsg = this.getErrorMsg();
+            String other$errorMsg = other.getErrorMsg();
+            return !(this$errorMsg == null ? other$errorMsg != null : !this$errorMsg.equals(other$errorMsg));
+        }
+
+        protected boolean canEqual(Object other) {
+            return other instanceof CompleteRequest;
+        }
+
+        public int hashCode() {
+            int PRIME = 59;
+            int result = 1;
+            result = result * 59 + (this.isSuccess() ? 79 : 97);
+            Long $taskId = this.getTaskId();
+            result = result * 59 + ($taskId == null ? 43 : ((Object)$taskId).hashCode());
+            String $payload = this.getPayload();
+            result = result * 59 + ($payload == null ? 43 : $payload.hashCode());
+            String $errorMsg = this.getErrorMsg();
+            result = result * 59 + ($errorMsg == null ? 43 : $errorMsg.hashCode());
+            return result;
+        }
+
+        public String toString() {
+            return "WorkerController.CompleteRequest(taskId=" + this.getTaskId() + ", success=" + this.isSuccess() + ", payload=" + this.getPayload() + ", errorMsg=" + this.getErrorMsg() + ")";
+        }
+    }
+}
+
