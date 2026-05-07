@@ -1,0 +1,61 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: super-async-benchmark
+
+  datasource:
+    url: jdbc:postgresql://localhost:15432/superasync_benchmark
+    username: superasync
+    password: superasync
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/benchmark-migration
+    baseline-on-migrate: true
+
+superasync:
+  node: benchmark-node
+  scheduler:
+    poll-interval-ms: 5000
+    batch-size: 200
+  executor:
+    core-pool-size: 16
+    max-pool-size: 32
+  retry:
+    base-delay-seconds: 5
+    max-delay-minutes: 10
+  timeout:
+    check-interval-ms: 30000
+    default-timeout-minutes: 10
+  client:
+    server-url: http://localhost:8082
+  worker:
+    enabled: true
+    worker-id: benchmark-worker-1
+    server-url: http://localhost:8082
+    core-pool-size: 16
+    poll-interval-ms: 100
+    tags:
+      - BENCHMARK
+
+logging:
+  level:
+    com.superasync: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
