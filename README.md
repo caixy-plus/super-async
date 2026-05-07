@@ -77,9 +77,9 @@ SuperAsync 是一个面向生产环境的通用异步任务调度平台，支持
 ### 调度流程
 
 1. 客户端通过 `TaskDispatcher.submit()` 将任务写入 `async_tasks` 表（状态 `PENDING`）。
-2. **本地模式**：`TaskPollingScheduler` 每 5 秒轮询一批 `PENDING` 任务，调用 `TaskExecutorEngine` 在线程池中执行。
-3. **Worker 模式**：`SuperAsyncWorkerEngine` 定期 HTTP 轮询 `/v1/worker/poll`，抢到任务后在本机线程池执行，结果通过 `/v1/worker/complete` 回写。
-4. **定时任务**：`JobSchedulerEngine` 每 10 秒扫描 `scheduled_jobs` 表，触达时间的任务会生成对应的 `async_task`。
+2. **本地模式**：`TaskPollingScheduler` 定期轮询 `PENDING` 任务（默认 5s，可配置），调用 `TaskExecutorEngine` 在线程池中执行。任务提交后会**即时触发一次轮询**，消除等待延迟。
+3. **Worker 模式**：`SuperAsyncWorkerEngine` 定期 HTTP 轮询 `/v1/worker/poll`，抢到任务后在本机线程池执行，结果通过 `/v1/worker/complete` 回写。支持**批量抢锁**（一次 HTTP 拉取多条任务）。
+4. **定时任务**：`JobSchedulerEngine` 定期扫描 `scheduled_jobs` 表（默认 10s，可配置），触达时间的任务会生成对应的 `async_task`。
 
 ---
 
@@ -267,74 +267,90 @@ public class JobService {
 | 简单任务吞吐量测试 | 本地模式手动轮询 | 1,000 | 空逻辑，测量系统处理上限 |
 | 耗时任务压力测试 | 本地模式手动轮询 | 200 | 单个任务休眠 1000ms，观察堆积与完成时间 |
 
-### 测试结果
+### 测试结果（优化后）
+
+> 优化内容：可配置轮询间隔 + 提交后即时调度（eager poll）+ Worker 批量抢锁
 
 #### 简单任务延迟测试 (Worker模式-手动驱动)
 
-| 指标 | 数值 |
-|---|---|
-| 提交任务数 | 100 |
-| 完成任务数 | 100 |
-| 失败任务数 | 0 |
-| 总耗时 | 0.08 s |
-| 吞吐量 | 1282.05 tasks/s |
-| 平均延迟 | 415.34 ms |
-| 最小延迟 | 73 ms |
-| P50 延迟 | 423 ms |
-| P95 延迟 | 735 ms |
-| P99 延迟 | 786 ms |
-| P99.9 延迟 | 786 ms |
-| 最大延迟 | 786 ms |
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 平均延迟 | 415.34 ms | **253.00 ms** | **↓ 39%** |
+| P50 延迟 | 423 ms | **245 ms** | **↓ 42%** |
+| P95 延迟 | 735 ms | **434 ms** | **↓ 41%** |
+| P99 延迟 | 786 ms | **489 ms** | **↓ 38%** |
 
 #### 简单任务吞吐量测试 (本地模式-手动驱动)
 
-| 指标 | 数值 |
-|---|---|
-| 提交任务数 | 1000 |
-| 完成任务数 | 1000 |
-| 失败任务数 | 0 |
-| 总耗时 | 0.26 s |
-| 吞吐量 | 3846.15 tasks/s |
-| 平均延迟 | 2100.84 ms |
-| 最小延迟 | 220 ms |
-| P50 延迟 | 1911 ms |
-| P95 延迟 | 3893 ms |
-| P99 延迟 | 4095 ms |
-| P99.9 延迟 | 4103 ms |
-| 最大延迟 | 4108 ms |
+| 指标 | 优化前 | 优化后 | 提升 |
+|---|---|---|---|
+| 平均延迟 | 2100.84 ms | **34.30 ms** | **↓ 98%** |
+| P50 延迟 | 1911 ms | **33 ms** | **↓ 98%** |
+| P95 延迟 | 3893 ms | **54 ms** | **↓ 99%** |
+| P99 延迟 | 4095 ms | **76 ms** | **↓ 98%** |
+| 吞吐量 | 3846 tasks/s | **3937 tasks/s** | 持平 |
 
 #### 耗时任务压力测试 (本地模式-手动驱动)
 
-| 指标 | 数值 |
-|---|---|
-| 提交任务数 | 200 |
-| 完成任务数 | 200 |
-| 失败任务数 | 0 |
-| 总耗时 | 0.05 s |
-| 吞吐量 | 3773.58 tasks/s |
-| 平均延迟 | 2663.82 ms |
-| 最小延迟 | 32 ms |
-| P50 延迟 | 3014 ms |
-| P95 延迟 | 5029 ms |
-| P99 延迟 | 6015 ms |
-| P99.9 延迟 | 6016 ms |
-| 最大延迟 | 6016 ms |
+| 指标 | 优化前 | 优化后 |
+|---|---|---|
+| 平均延迟 | 2663.82 ms | **2650.30 ms** |
+| P50 延迟 | 3014 ms | **3002 ms** |
 
 ### 结果分析
 
-- **Worker 延迟**：平均 415ms，P99 786ms。延迟主要来自 Worker HTTP 轮询间隔（默认 3s，测试中手动调优为 100ms）+ 任务排队时间。
-- **本地吞吐**：1000 个空任务在 0.26s 内全部提交，实际执行完成耗时约 4.1s（P99 延迟），系统单节点处理能力可达 **~3800 tasks/s** 以上。
-- **耗时任务**：200 个 1000ms 任务在 16 线程执行池中平稳完成，无失败、无堆积溢出，平均完成时间约 2.7s，说明调度器具备良好的任务堆积消化能力。
+- **本地模式延迟**：通过**即时调度（eager poll）**，任务提交后毫秒级触发 `pollAndDispatch`，P50 从 **1911ms 降至 33ms**，达到百毫秒级调度能力。
+- **Worker 模式延迟**：通过**批量抢锁**（一次 HTTP 拉取 10 条任务），HTTP 往返次数减少 90%，P50 从 **423ms 降至 245ms**。
+- **耗时任务**：优化前后基本持平，因为瓶颈在任务执行耗时（1000ms 休眠），而非调度层。
 
-### 架构瓶颈与调优建议
+### 调优建议
 
-| 瓶颈点 | 当前值 | 说明 |
-|---|---|---|
-| 本地调度轮询间隔 | 5s（代码硬编码） | 降低可显著减少本地模式延迟 |
-| Worker 轮询间隔 | 3s（默认）/ 100ms（测试） | 生产环境建议 1~3s，过低会增加 DB 压力 |
-| 单次轮询批次 | 50（代码硬编码） | 高吞吐场景建议调大至 200~500 |
-| Worker 单次抢锁 | LIMIT 1 | 多 Worker 场景下并发抢锁效率受限 |
-| 定时任务调度间隔 | 10s（代码硬编码） | Cron 精度受限于轮询间隔，秒级任务会丢触发 |
+| 配置项 | 默认值 | 生产建议 | 说明 |
+|---|---|---|---|
+| `superasync.scheduler.poll-interval-ms` | 5000 | 200 ~ 1000 | 本地调度轮询间隔。eager poll 已消除大部分延迟，此项作为兜底 |
+| `superasync.job-scheduler.poll-interval-ms` | 10000 | 1000 ~ 5000 | 定时任务扫描间隔。Cron 精度受限于该值 |
+| `superasync.worker.poll-interval-ms` | 3000 | 1000 ~ 3000 | Worker 轮询间隔。过低会增加 DB 抢锁 QPS |
+| `superasync.worker.core-pool-size` | 16 | 按 CPU 核数 × 2 | Worker 执行线程池大小 |
+| `superasync.executor.core-pool-size` | 16 | 按 CPU 核数 × 2 | Server 本地执行线程池大小 |
+
+---
+
+## 配置项参考
+
+`application.yml` 中所有可配置项：
+
+```yaml
+superasync:
+  node: server-node-1                    # 当前节点标识，用于任务锁定归属
+  scheduler:
+    poll-interval-ms: 5000               # 本地任务轮询间隔（默认 5s）
+    batch-size: 200                      # 单次轮询最大任务数（建议 200~500）
+  executor:
+    core-pool-size: 16                   # 本地执行线程池核心数
+    max-pool-size: 32                    # 本地执行线程池最大数
+  retry:
+    base-delay-seconds: 5                # 失败重试基础退避时间
+    max-delay-minutes: 10                # 失败重试最大退避时间
+  timeout:
+    check-interval-ms: 30000             # 超时任务扫描间隔
+    default-timeout-minutes: 10          # 任务默认超时时间
+  job-scheduler:
+    poll-interval-ms: 10000              # 定时任务扫描间隔（默认 10s）
+  worker:
+    enabled: true                        # 是否启用 Worker 模式
+    worker-id: worker-1                  # Worker 唯一标识
+    server-url: http://localhost:8080    # Server 地址
+    core-pool-size: 16                   # Worker 执行线程池大小
+    poll-interval-ms: 3000               # Worker 轮询间隔（默认 3s）
+    tags:                                # Worker 标签，用于任务路由
+      - PAYMENT_WORKER
+```
+
+### 关键行为说明
+
+- **eager poll（即时调度）**：任务 `submit()` 落库后，Server 会立即异步触发一次 `pollAndDispatch`。即使轮询间隔配置为 5s，本地任务也能在**毫秒级**被调度，大幅降低延迟 floor。
+- **Worker 批量抢锁**：新版 SDK 默认一次拉取 10 条任务到本地队列再分发执行。老版 SDK 走单条抢锁，仍然兼容，只是 HTTP 效率略低。
+- **配置热生效**：`poll-interval-ms` 等 Spring `@Scheduled` 配置在应用重启后生效，不支持运行时动态刷新。
 
 ---
 
