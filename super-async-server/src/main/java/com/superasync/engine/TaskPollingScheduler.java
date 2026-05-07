@@ -33,7 +33,7 @@ public class TaskPollingScheduler {
     private final TaskExecutorEngine executorEngine;
     private final TaskRetryEngine retryEngine;
 
-    @Scheduled(fixedDelay=5000L)
+    @Scheduled(fixedDelayString = "${superasync.scheduler.poll-interval-ms:5000}")
     @Transactional
     public void pollAndDispatch() {
         List<AsyncTaskEntity> tasks = this.taskRepository.pollLocalTasks(OffsetDateTime.now(), 50);

@@ -14,6 +14,7 @@ import com.superasync.dto.TaskStatus;
 import com.superasync.entity.AsyncTaskEntity;
 import com.superasync.repository.AsyncTaskRepository;
 import com.superasync.service.TaskDispatcher;
+import com.superasync.event.TaskSubmittedEvent;
 import com.superasync.service.TaskExecutor;
 import com.superasync.service.TaskReceiptHandler;
 import java.time.OffsetDateTime;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,7 @@ public class TaskDispatcherImpl
 implements TaskDispatcher {
     private static final Logger log = LoggerFactory.getLogger(TaskDispatcherImpl.class);
     private final AsyncTaskRepository taskRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Map<String, TaskExecutor> executors = new ConcurrentHashMap<String, TaskExecutor>();
     private final Map<String, TaskReceiptHandler> receipts = new ConcurrentHashMap<String, TaskReceiptHandler>();
 
@@ -52,6 +55,7 @@ implements TaskDispatcher {
         task.setTimeoutAt(OffsetDateTime.now().plus(request.getDelay()).plus(request.getTimeout()));
         this.taskRepository.save(task);
         log.info("[TaskDispatcher] Submitted task id={}, type={}, key={}", new Object[]{task.getId(), task.getTaskType(), task.getTaskKey()});
+        this.eventPublisher.publishEvent(new TaskSubmittedEvent(this, task.getId()));
         return task.getId();
     }
 
@@ -79,8 +83,9 @@ implements TaskDispatcher {
         return this.executors.containsKey(taskType);
     }
 
-    public TaskDispatcherImpl(AsyncTaskRepository taskRepository) {
+    public TaskDispatcherImpl(AsyncTaskRepository taskRepository, ApplicationEventPublisher eventPublisher) {
         this.taskRepository = taskRepository;
+        this.eventPublisher = eventPublisher;
     }
 }
 

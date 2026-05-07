@@ -16,6 +16,7 @@ import com.superasync.dto.Result;
 import com.superasync.entity.AsyncTaskEntity;
 import com.superasync.repository.AsyncTaskRepository;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,32 @@ public class WorkerController {
         return Result.success(wt);
     }
 
+    @PostMapping(value={"/pollBatch"})
+    @Transactional
+    public Result<List<WorkerTask>> pollBatch(@RequestBody PollRequest request) {
+        if (request.getTags() == null || request.getTags().isEmpty()) {
+            return Result.error(400, "tags 不能为空");
+        }
+        int batchSize = request.getBatchSize() != null ? request.getBatchSize() : 10;
+        List<WorkerTask> result = new ArrayList<>();
+        for (String tag : request.getTags()) {
+            List<AsyncTaskEntity> tasks = this.taskRepository.pollWorkerTasks(OffsetDateTime.now(), tag, batchSize);
+            for (AsyncTaskEntity task : tasks) {
+                this.taskRepository.lockTask(task.getId(), request.getWorkerId());
+                WorkerTask wt = new WorkerTask();
+                wt.setTaskId(task.getId());
+                wt.setTaskType(task.getTaskType());
+                wt.setTaskKey(task.getTaskKey());
+                wt.setPayload(task.getPayload());
+                wt.setRetryCount(task.getRetryCount());
+                wt.setMaxRetry(task.getMaxRetry());
+                result.add(wt);
+            }
+            if (!result.isEmpty()) break;
+        }
+        return Result.success(result);
+    }
+
     @PostMapping(value={"/complete"})
     @Transactional
     public Result<Void> complete(@RequestBody CompleteRequest request) {
@@ -84,6 +111,7 @@ public class WorkerController {
     public static class PollRequest {
         private String workerId;
         private List<String> tags;
+        private Integer batchSize;
 
         public String getWorkerId() {
             return this.workerId;
@@ -93,12 +121,20 @@ public class WorkerController {
             return this.tags;
         }
 
+        public Integer getBatchSize() {
+            return this.batchSize;
+        }
+
         public void setWorkerId(String workerId) {
             this.workerId = workerId;
         }
 
         public void setTags(List<String> tags) {
             this.tags = tags;
+        }
+
+        public void setBatchSize(Integer batchSize) {
+            this.batchSize = batchSize;
         }
 
         public boolean equals(Object o) {

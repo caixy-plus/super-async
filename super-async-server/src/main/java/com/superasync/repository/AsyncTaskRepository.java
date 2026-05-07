@@ -35,6 +35,9 @@ extends JpaRepository<AsyncTaskEntity, Long> {
     @Query(value="SELECT * FROM async_tasks\nWHERE status IN ('PENDING', 'FAIL')\n  AND execute_at <= ?1\n  AND retry_count < max_retry\n  AND worker_tag = ?2\nORDER BY priority ASC, execute_at ASC\nLIMIT 1 FOR UPDATE SKIP LOCKED\n", nativeQuery=true)
     public AsyncTaskEntity pollWorkerTask(OffsetDateTime var1, String var2);
 
+    @Query(value="SELECT * FROM async_tasks\nWHERE status IN ('PENDING', 'FAIL')\n  AND execute_at <= ?1\n  AND retry_count < max_retry\n  AND worker_tag = ?2\nORDER BY priority ASC, execute_at ASC\nLIMIT ?3 FOR UPDATE SKIP LOCKED\n", nativeQuery=true)
+    public List<AsyncTaskEntity> pollWorkerTasks(OffsetDateTime var1, String var2, int var3);
+
     @Query(value="SELECT * FROM async_tasks\nWHERE status = 'PROCESSING'\n  AND timeout_at <= ?1\n  AND worker_tag IS NULL\nLIMIT ?2 FOR UPDATE SKIP LOCKED\n", nativeQuery=true)
     public List<AsyncTaskEntity> pollTimeoutTasks(OffsetDateTime var1, int var2);
 

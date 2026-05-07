@@ -30,7 +30,7 @@ public class JobSchedulerEngine {
 
     private static final int POLL_BATCH = 50;
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelayString = "${superasync.job-scheduler.poll-interval-ms:10000}")
     @Transactional
     public void triggerDueJobs() {
         OffsetDateTime now = OffsetDateTime.now();

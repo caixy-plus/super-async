@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -69,12 +70,14 @@ public class SuperAsyncWorkerEngine {
             return;
         }
 
-        SuperAsyncWorkerClient.WorkerTask task = client.poll();
-        if (task == null) {
+        List<SuperAsyncWorkerClient.WorkerTask> tasks = client.pollBatch(10);
+        if (tasks == null || tasks.isEmpty()) {
             return;
         }
 
-        executorService.submit(() -> execute(task));
+        for (SuperAsyncWorkerClient.WorkerTask task : tasks) {
+            executorService.submit(() -> execute(task));
+        }
     }
 
     private void execute(SuperAsyncWorkerClient.WorkerTask task) {

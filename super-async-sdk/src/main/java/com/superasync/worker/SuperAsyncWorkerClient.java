@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,49 @@ public class SuperAsyncWorkerClient {
             return task;
         } catch (Exception e) {
             log.error("[WorkerClient] Poll failed", e);
+            return null;
+        }
+    }
+
+    /**
+     * 批量拉取任务
+     */
+    @SuppressWarnings("unchecked")
+    public List<WorkerTask> pollBatch(int batchSize) {
+        String url = properties.getServerUrl() + "/v1/worker/pollBatch";
+        Map<String, Object> body = new HashMap<>();
+        body.put("workerId", properties.getWorkerId());
+        body.put("tags", properties.getTags());
+        body.put("batchSize", batchSize);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            Map<String, Object> result = response.getBody();
+            if (result == null || !Integer.valueOf(0).equals(result.get("code"))) {
+                return null;
+            }
+            List<Map<String, Object>> dataList = (List<Map<String, Object>>) result.get("data");
+            if (dataList == null || dataList.isEmpty()) {
+                return null;
+            }
+            List<WorkerTask> tasks = new ArrayList<>();
+            for (Map<String, Object> data : dataList) {
+                WorkerTask task = new WorkerTask();
+                task.setTaskId(((Number) data.get("taskId")).longValue());
+                task.setTaskType((String) data.get("taskType"));
+                task.setTaskKey((String) data.get("taskKey"));
+                task.setPayload((String) data.get("payload"));
+                task.setRetryCount(((Number) data.get("retryCount")).intValue());
+                task.setMaxRetry(((Number) data.get("maxRetry")).intValue());
+                tasks.add(task);
+            }
+            return tasks;
+        } catch (Exception e) {
+            log.error("[WorkerClient] PollBatch failed", e);
             return null;
         }
     }
