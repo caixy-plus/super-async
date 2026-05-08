@@ -57,7 +57,8 @@ public class JobSchedulerEngine {
                 .taskKey(job.getTaskKey())
                 .payload(job.getPayload() != null ? job.getPayload() : "{}")
                 .priority(Priority.NORMAL)
-                .workerTag(job.getWorkerTag());
+                .workerTag(job.getWorkerTag())
+                .scheduledJobId(job.getId());
 
         Long taskId = taskDispatcher.submit(builder.build());
         log.info("[JobScheduler] Triggered job {} -> async_task id={}, key={}",
