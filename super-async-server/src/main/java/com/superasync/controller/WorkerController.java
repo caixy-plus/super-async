@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkerController {
     private static final Logger log = LoggerFactory.getLogger(WorkerController.class);
     private final AsyncTaskRepository taskRepository;
+    private final com.superasync.service.JobExecutionService executionService;
 
     @PostMapping(value={"/poll"})
     @Transactional
@@ -55,6 +56,7 @@ public class WorkerController {
         wt.setPayload(task.getPayload());
         wt.setRetryCount(task.getRetryCount());
         wt.setMaxRetry(task.getMaxRetry());
+        wt.setExecutionId(task.getExecutionId());
         return Result.success(wt);
     }
 
@@ -77,6 +79,7 @@ public class WorkerController {
                 wt.setPayload(task.getPayload());
                 wt.setRetryCount(task.getRetryCount());
                 wt.setMaxRetry(task.getMaxRetry());
+                wt.setExecutionId(task.getExecutionId());
                 result.add(wt);
             }
             if (!result.isEmpty()) break;
@@ -91,21 +94,34 @@ public class WorkerController {
         if (task == null) {
             return Result.error(404, "\u4efb\u52a1\u4e0d\u5b58\u5728");
         }
+        Long executionId = request.getExecutionId();
         if (request.isSuccess()) {
             this.taskRepository.completeTask(task.getId(), "SUCCESS", request.getPayload(), null);
             log.info("[WorkerController] Task {} completed by worker", (Object)request.getTaskId());
+            if (executionId != null) {
+                executionService.markCompleted(executionId, true, null);
+                executionService.appendLog(executionId, "INFO", String.format("[Worker] Task id=%d completed", request.getTaskId()));
+            }
         } else if (task.getRetryCount() < task.getMaxRetry()) {
             this.taskRepository.markForRetry(task.getId(), OffsetDateTime.now().plusSeconds(10L));
             log.warn("[WorkerController] Task {} failed, scheduled retry {}/{}", new Object[]{request.getTaskId(), task.getRetryCount() + 1, task.getMaxRetry()});
+            if (executionId != null) {
+                executionService.appendLog(executionId, "WARN", String.format("[Worker] Task id=%d failed, scheduled retry %d/%d", request.getTaskId(), task.getRetryCount() + 1, task.getMaxRetry()));
+            }
         } else {
             this.taskRepository.completeTask(task.getId(), "FAIL", request.getPayload(), request.getErrorMsg());
             log.error("[WorkerController] Task {} failed after all retries", (Object)request.getTaskId());
+            if (executionId != null) {
+                executionService.markCompleted(executionId, false, request.getErrorMsg());
+                executionService.appendLog(executionId, "ERROR", String.format("[Worker] Task id=%d failed after all retries: %s", request.getTaskId(), request.getErrorMsg()));
+            }
         }
         return Result.success();
     }
 
-    public WorkerController(AsyncTaskRepository taskRepository) {
+    public WorkerController(AsyncTaskRepository taskRepository, com.superasync.service.JobExecutionService executionService) {
         this.taskRepository = taskRepository;
+        this.executionService = executionService;
     }
 
     public static class PollRequest {
@@ -184,6 +200,7 @@ public class WorkerController {
         private String payload;
         private int retryCount;
         private int maxRetry;
+        private Long executionId;
 
         public Long getTaskId() {
             return this.taskId;
@@ -207,6 +224,10 @@ public class WorkerController {
 
         public int getMaxRetry() {
             return this.maxRetry;
+        }
+
+        public Long getExecutionId() {
+            return this.executionId;
         }
 
         public void setTaskId(Long taskId) {
@@ -233,6 +254,10 @@ public class WorkerController {
             this.maxRetry = maxRetry;
         }
 
+        public void setExecutionId(Long executionId) {
+            this.executionId = executionId;
+        }
+
         public boolean equals(Object o) {
             if (o == this) {
                 return true;
@@ -248,6 +273,11 @@ public class WorkerController {
                 return false;
             }
             if (this.getMaxRetry() != other.getMaxRetry()) {
+                return false;
+            }
+            Long this$executionId = this.getExecutionId();
+            Long other$executionId = other.getExecutionId();
+            if (this$executionId == null ? other$executionId != null : !((Object)this$executionId).equals(other$executionId)) {
                 return false;
             }
             Long this$taskId = this.getTaskId();
@@ -279,6 +309,8 @@ public class WorkerController {
             int result = 1;
             result = result * 59 + this.getRetryCount();
             result = result * 59 + this.getMaxRetry();
+            Long $executionId = this.getExecutionId();
+            result = result * 59 + ($executionId == null ? 43 : ((Object)$executionId).hashCode());
             Long $taskId = this.getTaskId();
             result = result * 59 + ($taskId == null ? 43 : ((Object)$taskId).hashCode());
             String $taskType = this.getTaskType();
@@ -291,7 +323,7 @@ public class WorkerController {
         }
 
         public String toString() {
-            return "WorkerController.WorkerTask(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ")";
+            return "WorkerController.WorkerTask(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ", executionId=" + this.getExecutionId() + ")";
         }
     }
 
@@ -300,6 +332,7 @@ public class WorkerController {
         private boolean success;
         private String payload;
         private String errorMsg;
+        private Long executionId;
 
         public Long getTaskId() {
             return this.taskId;
@@ -317,6 +350,10 @@ public class WorkerController {
             return this.errorMsg;
         }
 
+        public Long getExecutionId() {
+            return this.executionId;
+        }
+
         public void setTaskId(Long taskId) {
             this.taskId = taskId;
         }
@@ -331,6 +368,10 @@ public class WorkerController {
 
         public void setErrorMsg(String errorMsg) {
             this.errorMsg = errorMsg;
+        }
+
+        public void setExecutionId(Long executionId) {
+            this.executionId = executionId;
         }
 
         public boolean equals(Object o) {
@@ -350,6 +391,11 @@ public class WorkerController {
             Long this$taskId = this.getTaskId();
             Long other$taskId = other.getTaskId();
             if (this$taskId == null ? other$taskId != null : !((Object)this$taskId).equals(other$taskId)) {
+                return false;
+            }
+            Long this$executionId = this.getExecutionId();
+            Long other$executionId = other.getExecutionId();
+            if (this$executionId == null ? other$executionId != null : !((Object)this$executionId).equals(other$executionId)) {
                 return false;
             }
             String this$payload = this.getPayload();
@@ -372,6 +418,8 @@ public class WorkerController {
             result = result * 59 + (this.isSuccess() ? 79 : 97);
             Long $taskId = this.getTaskId();
             result = result * 59 + ($taskId == null ? 43 : ((Object)$taskId).hashCode());
+            Long $executionId = this.getExecutionId();
+            result = result * 59 + ($executionId == null ? 43 : ((Object)$executionId).hashCode());
             String $payload = this.getPayload();
             result = result * 59 + ($payload == null ? 43 : $payload.hashCode());
             String $errorMsg = this.getErrorMsg();
@@ -380,7 +428,7 @@ public class WorkerController {
         }
 
         public String toString() {
-            return "WorkerController.CompleteRequest(taskId=" + this.getTaskId() + ", success=" + this.isSuccess() + ", payload=" + this.getPayload() + ", errorMsg=" + this.getErrorMsg() + ")";
+            return "WorkerController.CompleteRequest(taskId=" + this.getTaskId() + ", success=" + this.isSuccess() + ", payload=" + this.getPayload() + ", errorMsg=" + this.getErrorMsg() + ", executionId=" + this.getExecutionId() + ")";
         }
     }
 }
