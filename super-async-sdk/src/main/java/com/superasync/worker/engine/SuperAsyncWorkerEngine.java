@@ -84,6 +84,8 @@ public class SuperAsyncWorkerEngine {
         log.info("[WorkerEngine] Executing task id={}, type={}, retry={}",
                 task.getTaskId(), task.getTaskType(), task.getRetryCount());
 
+        Long executionId = task.getExecutionId();
+
         TaskContext context = TaskContext.builder()
                 .taskId(task.getTaskId())
                 .taskType(task.getTaskType())
@@ -91,12 +93,13 @@ public class SuperAsyncWorkerEngine {
                 .payload(task.getPayload())
                 .retryCount(task.getRetryCount())
                 .maxRetry(task.getMaxRetry())
+                .executionId(executionId)
                 .build();
 
         try {
             if (!registry.hasHandler(task.getTaskType())) {
                 log.error("[WorkerEngine] No handler for taskType={}, taskId={}", task.getTaskType(), task.getTaskId());
-                client.complete(task.getTaskId(), false, null,
+                client.complete(task.getTaskId(), executionId, false, null,
                         "No handler registered for type: " + task.getTaskType());
                 return;
             }
@@ -107,15 +110,15 @@ public class SuperAsyncWorkerEngine {
             }
 
             if (result.isSuccess()) {
-                client.complete(task.getTaskId(), true, result.getPayload(), null);
+                client.complete(task.getTaskId(), executionId, true, result.getPayload(), null);
                 log.info("[WorkerEngine] Task id={} succeeded", task.getTaskId());
             } else {
-                client.complete(task.getTaskId(), false, result.getPayload(), result.getErrorMsg());
+                client.complete(task.getTaskId(), executionId, false, result.getPayload(), result.getErrorMsg());
                 log.warn("[WorkerEngine] Task id={} failed: {}", task.getTaskId(), result.getErrorMsg());
             }
         } catch (Exception e) {
             log.error("[WorkerEngine] Task id={} threw exception", task.getTaskId(), e);
-            client.complete(task.getTaskId(), false, null, e.getMessage());
+            client.complete(task.getTaskId(), executionId, false, null, e.getMessage());
         }
     }
 }
