@@ -62,6 +62,7 @@ public class BenchmarkOrchestrator {
 
     private static final String SC_SIMPLE_LATENCY = "简单任务延迟测试 (Worker模式-手动驱动)";
     private static final String SC_SIMPLE_THROUGHPUT = "简单任务吞吐量测试 (本地模式-手动驱动)";
+    private static final String SC_10K_THROUGHPUT = "万级任务吞吐量测试 (本地模式-手动驱动)";
     private static final String SC_HEAVY_STRESS = "耗时任务压力测试 (本地模式-手动驱动)";
     private static final String SC_SCHEDULED_SIMPLE = "定时任务测试-简单";
     private static final String SC_SCHEDULED_HEAVY = "定时任务测试-耗时";
@@ -87,7 +88,10 @@ public class BenchmarkOrchestrator {
         // 场景2: 本地模式简单任务吞吐（高频手动轮询）
         runLocalThroughputTest(1000);
 
-        // 场景3: 耗时任务压力测试
+        // 场景3: 万级任务吞吐量测试
+        run10KThroughputTest(10000);
+
+        // 场景4: 耗时任务压力测试
         runHeavyStressTest(200, 1000);
 
         // 场景4: 定时任务测试
@@ -163,6 +167,38 @@ public class BenchmarkOrchestrator {
 
         waitForCompletion(SC_SIMPLE_THROUGHPUT, count, 5, TimeUnit.MINUTES);
         log.info("[Benchmark] {} 执行完成", SC_SIMPLE_THROUGHPUT);
+    }
+
+    /**
+     * 万级任务吞吐量测试：1 分钟内提交 10,000 条简单任务，测试极限吞吐。
+     */
+    private void run10KThroughputTest(int count) throws Exception {
+        log.info("[Benchmark] 开始场景: {}，任务数: {}", SC_10K_THROUGHPUT, count);
+        BenchmarkMetrics metrics = collector.getMetrics(SC_10K_THROUGHPUT);
+        metrics.markStart();
+
+        // 启动本地高频调度线程
+        startLocalPoller(200);
+
+        CountDownLatch latch = new CountDownLatch(count);
+        for (int i = 0; i < count; i++) {
+            final int seq = i;
+            submitPool.submit(() -> {
+                try {
+                    submitTask(SC_10K_THROUGHPUT, seq, "BENCHMARK_SIMPLE", false, "{}");
+                } catch (Exception e) {
+                    log.error("[Benchmark] 提交失败 seq={}", seq, e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+        latch.await(2, TimeUnit.MINUTES);
+        metrics.markEnd();
+        log.info("[Benchmark] {} 提交完成，等待执行 ...", SC_10K_THROUGHPUT);
+
+        waitForCompletion(SC_10K_THROUGHPUT, count, 10, TimeUnit.MINUTES);
+        log.info("[Benchmark] {} 执行完成", SC_10K_THROUGHPUT);
     }
 
     /**
