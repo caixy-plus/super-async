@@ -252,6 +252,20 @@ public class JobService {
 }
 ```
 
+### 定时任务管理 API
+
+| Method | Path | Description | Request Body / Params |
+|---|---|---|---|
+| GET | /v1/scheduled-jobs | List jobs | `?enabled=&page=&size=` |
+| GET | /v1/scheduled-jobs/{id} | Get job detail | — |
+| POST | /v1/scheduled-jobs | Create job | `{jobName, taskType, taskKey, cronExpression, payload?, workerTag?, description?, enabled?}` |
+| PUT | /v1/scheduled-jobs/{id} | Update job | Partial body with fields to update |
+| DELETE | /v1/scheduled-jobs/{id} | Delete job | — |
+| POST | /v1/scheduled-jobs/{id}/trigger | Trigger now | — |
+| POST | /v1/scheduled-jobs/{id}/toggle | Enable/disable | `{enabled: true/false}` |
+
+> 这些接口由 `ScheduledJobController` 提供，管理后台可通过代理调用。
+
 ---
 
 ## 性能测试报告
@@ -268,28 +282,26 @@ public class JobService {
 | 万级任务吞吐量测试 | 本地模式手动轮询 | 10,000 | 空逻辑，1 分钟内提交 1 万条，测试极限吞吐 |
 | 耗时任务压力测试 | 本地模式手动轮询 | 200 | 单个任务休眠 1000ms，观察堆积与完成时间 |
 
-### 测试结果（优化后）
-
-> 优化内容：可配置轮询间隔 + 提交后即时调度（eager poll）+ Worker 批量抢锁
+### 测试结果
 
 #### 简单任务延迟测试 (Worker模式-手动驱动)
 
-| 指标 | 优化前 | 优化后 | 提升 |
-|---|---|---|---|
-| 平均延迟 | 415.34 ms | **253.00 ms** | **↓ 39%** |
-| P50 延迟 | 423 ms | **245 ms** | **↓ 42%** |
-| P95 延迟 | 735 ms | **434 ms** | **↓ 41%** |
-| P99 延迟 | 786 ms | **489 ms** | **↓ 38%** |
+| 指标 | 数值 |
+|---|---|
+| 平均延迟 | **253.00 ms** |
+| P50 延迟 | **245 ms** |
+| P95 延迟 | **434 ms** |
+| P99 延迟 | **489 ms** |
 
 #### 简单任务吞吐量测试 (本地模式-手动驱动)
 
-| 指标 | 优化前 | 优化后 | 提升 |
-|---|---|---|---|
-| 平均延迟 | 2100.84 ms | **34.30 ms** | **↓ 98%** |
-| P50 延迟 | 1911 ms | **33 ms** | **↓ 98%** |
-| P95 延迟 | 3893 ms | **54 ms** | **↓ 99%** |
-| P99 延迟 | 4095 ms | **76 ms** | **↓ 98%** |
-| 吞吐量 | 3846 tasks/s | **3937 tasks/s** | 持平 |
+| 指标 | 数值 |
+|---|---|
+| 平均延迟 | **34.30 ms** |
+| P50 延迟 | **33 ms** |
+| P95 延迟 | **54 ms** |
+| P99 延迟 | **76 ms** |
+| 吞吐量 | **3937 tasks/s** |
 
 #### 万级任务吞吐量测试 (本地模式-手动驱动)
 
@@ -310,17 +322,17 @@ public class JobService {
 
 #### 耗时任务压力测试 (本地模式-手动驱动)
 
-| 指标 | 优化前 | 优化后 |
-|---|---|---|
-| 平均延迟 | 2663.82 ms | **2650.30 ms** |
-| P50 延迟 | 3014 ms | **3002 ms** |
+| 指标 | 数值 |
+|---|---|
+| 平均延迟 | **2650.30 ms** |
+| P50 延迟 | **3002 ms** |
 
 ### 结果分析
 
-- **本地模式延迟**：通过**即时调度（eager poll）**，任务提交后毫秒级触发 `pollAndDispatch`，P50 从 **1911ms 降至 33ms**，达到百毫秒级调度能力。
-- **Worker 模式延迟**：通过**批量抢锁**（一次 HTTP 拉取 10 条任务），HTTP 往返次数减少 90%，P50 从 **423ms 降至 245ms**。
+- **本地模式延迟**：通过**即时调度（eager poll）**，任务提交后毫秒级触发 `pollAndDispatch`，P50 达到 **33ms**，具备百毫秒级调度能力。
+- **Worker 模式延迟**：通过**批量抢锁**（一次 HTTP 拉取 10 条任务），HTTP 往返次数减少 90%，P50 达到 **245ms**。
 - **万级吞吐**：1 分钟内提交 10,000 条任务，系统在 **1.93 秒**内全部完成，峰值吞吐达 **5186 tasks/s**，零失败。
-- **耗时任务**：优化前后基本持平，因为瓶颈在任务执行耗时（1000ms 休眠），而非调度层。
+- **耗时任务**：瓶颈在任务执行耗时（1000ms 休眠），调度层影响极小，结果符合预期。
 
 ### 调优建议
 
