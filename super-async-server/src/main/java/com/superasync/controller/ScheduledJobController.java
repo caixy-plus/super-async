@@ -31,6 +31,7 @@ public class ScheduledJobController {
     private final ScheduledJobRepository jobRepository;
     private final TaskDispatcher taskDispatcher;
     private final ScheduledJobLogService logService;
+    private final com.superasync.service.JobExecutionService executionService;
 
     @GetMapping
     public Result<Page<ScheduledJobEntity>> list(
@@ -125,15 +126,20 @@ public class ScheduledJobController {
             return Result.error(400, "任务已禁用");
         }
 
+        com.superasync.entity.JobExecutionEntity execution = executionService.startExecution(job.getId());
+        Long executionId = execution.getId();
+
         com.superasync.dto.TaskRequest request = com.superasync.dto.TaskRequest.builder()
                 .taskType(job.getTaskType())
                 .taskKey(job.getTaskKey() + ":manual:" + System.currentTimeMillis())
                 .payload(job.getPayload())
                 .priority(com.superasync.dto.Priority.NORMAL)
                 .workerTag(job.getWorkerTag())
+                .scheduledJobId(job.getId())
+                .executionId(executionId)
                 .build();
         Long taskId = taskDispatcher.submit(request);
-        log.info("[ScheduledJob] Manual trigger job id={}, name={} -> taskId={}", id, job.getJobName(), taskId);
+        log.info("[ScheduledJob] Manual trigger job id={}, name={} -> taskId={}, executionId={}", id, job.getJobName(), taskId, executionId);
         return Result.success(taskId);
     }
 
