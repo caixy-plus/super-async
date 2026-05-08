@@ -64,7 +64,15 @@ public class TaskPollingScheduler {
     }
 
     private TaskContext buildContext(AsyncTaskEntity task) {
-        return TaskContext.builder().taskId(task.getId()).taskType(task.getTaskType()).taskKey(task.getTaskKey()).payload(task.getPayload()).retryCount(task.getRetryCount()).maxRetry(task.getMaxRetry()).build();
+        return TaskContext.builder()
+                .taskId(task.getId())
+                .taskType(task.getTaskType())
+                .taskKey(task.getTaskKey())
+                .payload(task.getPayload())
+                .retryCount(task.getRetryCount())
+                .maxRetry(task.getMaxRetry())
+                .executionId(task.getExecutionId())
+                .build();
     }
 
     private String getWorkerNode() {
