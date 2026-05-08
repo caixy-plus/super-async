@@ -13,7 +13,7 @@
 
     <groupId>com.superasync</groupId>
     <artifactId>super-async</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
     <name>super-async</name>
     <description>通用异步任务调度平台</description>

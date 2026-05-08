@@ -13,7 +13,7 @@
 
     <groupId>com.superasync</groupId>
     <artifactId>super-async-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>super-async-sdk</name>
     <description>SuperAsync client and worker SDK</description>
 
