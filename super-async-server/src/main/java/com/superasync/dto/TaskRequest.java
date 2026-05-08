@@ -16,6 +16,7 @@ public class TaskRequest {
     private int maxRetry;
     private String workerTag;
     private Long scheduledJobId;
+    private Long executionId;
 
     private static Priority $default$priority() {
         return Priority.NORMAL;
@@ -33,7 +34,7 @@ public class TaskRequest {
         return 3;
     }
 
-    TaskRequest(String taskType, String taskKey, String payload, Priority priority, Duration delay, Duration timeout, int maxRetry, String workerTag, Long scheduledJobId) {
+    TaskRequest(String taskType, String taskKey, String payload, Priority priority, Duration delay, Duration timeout, int maxRetry, String workerTag, Long scheduledJobId, Long executionId) {
         this.taskType = taskType;
         this.taskKey = taskKey;
         this.payload = payload;
@@ -43,6 +44,7 @@ public class TaskRequest {
         this.maxRetry = maxRetry;
         this.workerTag = workerTag;
         this.scheduledJobId = scheduledJobId;
+        this.executionId = executionId;
     }
 
     public static TaskRequestBuilder builder() {
@@ -85,6 +87,10 @@ public class TaskRequest {
         return this.scheduledJobId;
     }
 
+    public Long getExecutionId() {
+        return this.executionId;
+    }
+
     public void setTaskType(String taskType) {
         this.taskType = taskType;
     }
@@ -119,6 +125,10 @@ public class TaskRequest {
 
     public void setScheduledJobId(Long scheduledJobId) {
         this.scheduledJobId = scheduledJobId;
+    }
+
+    public void setExecutionId(Long executionId) {
+        this.executionId = executionId;
     }
 
     public boolean equals(Object o) {
@@ -172,7 +182,12 @@ public class TaskRequest {
         }
         Long this$scheduledJobId = this.getScheduledJobId();
         Long other$scheduledJobId = other.getScheduledJobId();
-        return !(this$scheduledJobId == null ? other$scheduledJobId != null : !((Object)this$scheduledJobId).equals(other$scheduledJobId));
+        if (this$scheduledJobId == null ? other$scheduledJobId != null : !((Object)this$scheduledJobId).equals(other$scheduledJobId)) {
+            return false;
+        }
+        Long this$executionId = this.getExecutionId();
+        Long other$executionId = other.getExecutionId();
+        return !(this$executionId == null ? other$executionId != null : !((Object)this$executionId).equals(other$executionId));
     }
 
     protected boolean canEqual(Object other) {
@@ -199,11 +214,13 @@ public class TaskRequest {
         result = result * 59 + ($workerTag == null ? 43 : $workerTag.hashCode());
         Long $scheduledJobId = this.getScheduledJobId();
         result = result * 59 + ($scheduledJobId == null ? 43 : ((Object)$scheduledJobId).hashCode());
+        Long $executionId = this.getExecutionId();
+        result = result * 59 + ($executionId == null ? 43 : ((Object)$executionId).hashCode());
         return result;
     }
 
     public String toString() {
-        return "TaskRequest(taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", priority=" + String.valueOf((Object)this.getPriority()) + ", delay=" + String.valueOf(this.getDelay()) + ", timeout=" + String.valueOf(this.getTimeout()) + ", maxRetry=" + this.getMaxRetry() + ", workerTag=" + this.getWorkerTag() + ", scheduledJobId=" + this.getScheduledJobId() + ")";
+        return "TaskRequest(taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", priority=" + String.valueOf((Object)this.getPriority()) + ", delay=" + String.valueOf(this.getDelay()) + ", timeout=" + String.valueOf(this.getTimeout()) + ", maxRetry=" + this.getMaxRetry() + ", workerTag=" + this.getWorkerTag() + ", scheduledJobId=" + this.getScheduledJobId() + ", executionId=" + this.getExecutionId() + ")";
     }
 
     public static class TaskRequestBuilder {
@@ -220,6 +237,7 @@ public class TaskRequest {
         private int maxRetry$value;
         private String workerTag;
         private Long scheduledJobId;
+        private Long executionId;
 
         TaskRequestBuilder() {
         }
@@ -273,6 +291,11 @@ public class TaskRequest {
             return this;
         }
 
+        public TaskRequestBuilder executionId(Long executionId) {
+            this.executionId = executionId;
+            return this;
+        }
+
         public TaskRequest build() {
             Priority priority$value = this.priority$value;
             if (!this.priority$set) {
@@ -290,12 +313,11 @@ public class TaskRequest {
             if (!this.maxRetry$set) {
                 maxRetry$value = TaskRequest.$default$maxRetry();
             }
-            return new TaskRequest(this.taskType, this.taskKey, this.payload, priority$value, delay$value, timeout$value, maxRetry$value, this.workerTag, this.scheduledJobId);
+            return new TaskRequest(this.taskType, this.taskKey, this.payload, priority$value, delay$value, timeout$value, maxRetry$value, this.workerTag, this.scheduledJobId, this.executionId);
         }
 
         public String toString() {
-            return "TaskRequest.TaskRequestBuilder(taskType=" + this.taskType + ", taskKey=" + this.taskKey + ", payload=" + this.payload + ", priority$value=" + String.valueOf((Object)this.priority$value) + ", delay$value=" + String.valueOf(this.delay$value) + ", timeout$value=" + String.valueOf(this.timeout$value) + ", maxRetry$value=" + this.maxRetry$value + ", workerTag=" + this.workerTag + ", scheduledJobId=" + this.scheduledJobId + ")";
+            return "TaskRequest.TaskRequestBuilder(taskType=" + this.taskType + ", taskKey=" + this.taskKey + ", payload=" + this.payload + ", priority$value=" + String.valueOf((Object)this.priority$value) + ", delay$value=" + String.valueOf(this.delay$value) + ", timeout$value=" + String.valueOf(this.timeout$value) + ", maxRetry$value=" + this.maxRetry$value + ", workerTag=" + this.workerTag + ", scheduledJobId=" + this.scheduledJobId + ", executionId=" + this.executionId + ")";
         }
     }
 }
-

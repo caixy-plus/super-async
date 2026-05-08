@@ -10,14 +10,16 @@ public class TaskContext {
     private String payload;
     private int retryCount;
     private int maxRetry;
+    private Long executionId;
 
-    TaskContext(Long taskId, String taskType, String taskKey, String payload, int retryCount, int maxRetry) {
+    TaskContext(Long taskId, String taskType, String taskKey, String payload, int retryCount, int maxRetry, Long executionId) {
         this.taskId = taskId;
         this.taskType = taskType;
         this.taskKey = taskKey;
         this.payload = payload;
         this.retryCount = retryCount;
         this.maxRetry = maxRetry;
+        this.executionId = executionId;
     }
 
     public static TaskContextBuilder builder() {
@@ -48,6 +50,10 @@ public class TaskContext {
         return this.maxRetry;
     }
 
+    public Long getExecutionId() {
+        return this.executionId;
+    }
+
     public void setTaskId(Long taskId) {
         this.taskId = taskId;
     }
@@ -70,6 +76,10 @@ public class TaskContext {
 
     public void setMaxRetry(int maxRetry) {
         this.maxRetry = maxRetry;
+    }
+
+    public void setExecutionId(Long executionId) {
+        this.executionId = executionId;
     }
 
     public boolean equals(Object o) {
@@ -106,7 +116,12 @@ public class TaskContext {
         }
         String this$payload = this.getPayload();
         String other$payload = other.getPayload();
-        return !(this$payload == null ? other$payload != null : !this$payload.equals(other$payload));
+        if (this$payload == null ? other$payload != null : !this$payload.equals(other$payload)) {
+            return false;
+        }
+        Long this$executionId = this.getExecutionId();
+        Long other$executionId = other.getExecutionId();
+        return !(this$executionId == null ? other$executionId != null : !((Object)this$executionId).equals(other$executionId));
     }
 
     protected boolean canEqual(Object other) {
@@ -126,11 +141,13 @@ public class TaskContext {
         result = result * 59 + ($taskKey == null ? 43 : $taskKey.hashCode());
         String $payload = this.getPayload();
         result = result * 59 + ($payload == null ? 43 : $payload.hashCode());
+        Long $executionId = this.getExecutionId();
+        result = result * 59 + ($executionId == null ? 43 : ((Object)$executionId).hashCode());
         return result;
     }
 
     public String toString() {
-        return "TaskContext(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ")";
+        return "TaskContext(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ", executionId=" + this.getExecutionId() + ")";
     }
 
     public static class TaskContextBuilder {
@@ -140,6 +157,7 @@ public class TaskContext {
         private String payload;
         private int retryCount;
         private int maxRetry;
+        private Long executionId;
 
         TaskContextBuilder() {
         }
@@ -174,13 +192,17 @@ public class TaskContext {
             return this;
         }
 
+        public TaskContextBuilder executionId(Long executionId) {
+            this.executionId = executionId;
+            return this;
+        }
+
         public TaskContext build() {
-            return new TaskContext(this.taskId, this.taskType, this.taskKey, this.payload, this.retryCount, this.maxRetry);
+            return new TaskContext(this.taskId, this.taskType, this.taskKey, this.payload, this.retryCount, this.maxRetry, this.executionId);
         }
 
         public String toString() {
-            return "TaskContext.TaskContextBuilder(taskId=" + this.taskId + ", taskType=" + this.taskType + ", taskKey=" + this.taskKey + ", payload=" + this.payload + ", retryCount=" + this.retryCount + ", maxRetry=" + this.maxRetry + ")";
+            return "TaskContext.TaskContextBuilder(taskId=" + this.taskId + ", taskType=" + this.taskType + ", taskKey=" + this.taskKey + ", payload=" + this.payload + ", retryCount=" + this.retryCount + ", maxRetry=" + this.maxRetry + ", executionId=" + this.executionId + ")";
         }
     }
 }
-
