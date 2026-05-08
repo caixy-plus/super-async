@@ -54,6 +54,15 @@ public class TaskQueryController {
         return Result.success(result);
     }
 
+    @GetMapping(value={"/scheduled-job/{scheduledJobId}"})
+    public Result<Page<AsyncTaskEntity>> listByScheduledJob(
+            @PathVariable Long scheduledJobId,
+            @RequestParam(defaultValue="0") int page,
+            @RequestParam(defaultValue="20") int size) {
+        PageRequest pageRequest = PageRequest.of((int)page, (int)size, (Sort)Sort.by((Sort.Direction)Sort.Direction.DESC, (String[])new String[]{"createdAt"}));
+        return Result.success(this.taskRepository.findByScheduledJobId(scheduledJobId, (Pageable)pageRequest));
+    }
+
     public TaskQueryController(AsyncTaskRepository taskRepository) {
         this.taskRepository = taskRepository;
     }
