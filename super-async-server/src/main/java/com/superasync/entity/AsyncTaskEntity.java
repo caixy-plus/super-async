@@ -55,6 +55,8 @@ public class AsyncTaskEntity {
     private String workerNode;
     @Column(name="worker_tag", length=64)
     private String workerTag;
+    @Column(name="scheduled_job_id")
+    private Long scheduledJobId;
     @CreationTimestamp
     @Column(name="created_at", nullable=false, updatable=false)
     private OffsetDateTime createdAt;
@@ -116,6 +118,10 @@ public class AsyncTaskEntity {
 
     public String getWorkerTag() {
         return this.workerTag;
+    }
+
+    public Long getScheduledJobId() {
+        return this.scheduledJobId;
     }
 
     public OffsetDateTime getCreatedAt() {
@@ -180,6 +186,10 @@ public class AsyncTaskEntity {
 
     public void setWorkerTag(String workerTag) {
         this.workerTag = workerTag;
+    }
+
+    public void setScheduledJobId(Long scheduledJobId) {
+        this.scheduledJobId = scheduledJobId;
     }
 
     public void setCreatedAt(OffsetDateTime createdAt) {
@@ -324,7 +334,7 @@ public class AsyncTaskEntity {
     }
 
     public String toString() {
-        return "AsyncTaskEntity(id=" + this.getId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", priority=" + this.getPriority() + ", status=" + this.getStatus() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ", executeAt=" + String.valueOf(this.getExecuteAt()) + ", timeoutAt=" + String.valueOf(this.getTimeoutAt()) + ", resultPayload=" + this.getResultPayload() + ", errorMsg=" + this.getErrorMsg() + ", workerNode=" + this.getWorkerNode() + ", workerTag=" + this.getWorkerTag() + ", createdAt=" + String.valueOf(this.getCreatedAt()) + ", updatedAt=" + String.valueOf(this.getUpdatedAt()) + ")";
+        return "AsyncTaskEntity(id=" + this.getId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", priority=" + this.getPriority() + ", status=" + this.getStatus() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ", executeAt=" + String.valueOf(this.getExecuteAt()) + ", timeoutAt=" + String.valueOf(this.getTimeoutAt()) + ", resultPayload=" + this.getResultPayload() + ", errorMsg=" + this.getErrorMsg() + ", workerNode=" + this.getWorkerNode() + ", workerTag=" + this.getWorkerTag() + ", scheduledJobId=" + this.getScheduledJobId() + ", createdAt=" + String.valueOf(this.getCreatedAt()) + ", updatedAt=" + String.valueOf(this.getUpdatedAt()) + ")";
     }
 }
 
