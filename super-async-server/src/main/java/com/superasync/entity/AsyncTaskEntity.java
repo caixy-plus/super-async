@@ -57,6 +57,8 @@ public class AsyncTaskEntity {
     private String workerTag;
     @Column(name="scheduled_job_id")
     private Long scheduledJobId;
+    @Column(name="execution_id")
+    private Long executionId;
     @CreationTimestamp
     @Column(name="created_at", nullable=false, updatable=false)
     private OffsetDateTime createdAt;
@@ -190,6 +192,14 @@ public class AsyncTaskEntity {
 
     public void setScheduledJobId(Long scheduledJobId) {
         this.scheduledJobId = scheduledJobId;
+    }
+
+    public Long getExecutionId() {
+        return this.executionId;
+    }
+
+    public void setExecutionId(Long executionId) {
+        this.executionId = executionId;
     }
 
     public void setCreatedAt(OffsetDateTime createdAt) {
