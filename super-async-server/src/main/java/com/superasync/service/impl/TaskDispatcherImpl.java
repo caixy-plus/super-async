@@ -51,6 +51,7 @@ implements TaskDispatcher {
         task.setStatus(TaskStatus.PENDING.name());
         task.setMaxRetry(request.getMaxRetry());
         task.setWorkerTag(request.getWorkerTag());
+        task.setScheduledJobId(request.getScheduledJobId());
         task.setExecuteAt(OffsetDateTime.now().plus(request.getDelay()));
         task.setTimeoutAt(OffsetDateTime.now().plus(request.getDelay()).plus(request.getTimeout()));
         this.taskRepository.save(task);
