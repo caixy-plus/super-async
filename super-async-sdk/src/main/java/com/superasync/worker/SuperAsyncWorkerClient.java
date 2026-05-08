@@ -56,6 +56,10 @@ public class SuperAsyncWorkerClient {
             task.setPayload((String) data.get("payload"));
             task.setRetryCount(((Number) data.get("retryCount")).intValue());
             task.setMaxRetry(((Number) data.get("maxRetry")).intValue());
+            Object execId = data.get("executionId");
+            if (execId != null) {
+                task.setExecutionId(((Number) execId).longValue());
+            }
             return task;
         } catch (Exception e) {
             log.error("[WorkerClient] Poll failed", e);
@@ -97,6 +101,10 @@ public class SuperAsyncWorkerClient {
                 task.setPayload((String) data.get("payload"));
                 task.setRetryCount(((Number) data.get("retryCount")).intValue());
                 task.setMaxRetry(((Number) data.get("maxRetry")).intValue());
+                Object execId = data.get("executionId");
+                if (execId != null) {
+                    task.setExecutionId(((Number) execId).longValue());
+                }
                 tasks.add(task);
             }
             return tasks;
@@ -109,10 +117,11 @@ public class SuperAsyncWorkerClient {
     /**
      * 上报任务结果
      */
-    public void complete(Long taskId, boolean success, String payload, String errorMsg) {
+    public void complete(Long taskId, Long executionId, boolean success, String payload, String errorMsg) {
         String url = properties.getServerUrl() + "/v1/worker/complete";
         Map<String, Object> body = new HashMap<>();
         body.put("taskId", taskId);
+        body.put("executionId", executionId);
         body.put("success", success);
         body.put("payload", payload);
         body.put("errorMsg", errorMsg);
@@ -139,5 +148,6 @@ public class SuperAsyncWorkerClient {
         private String payload;
         private int retryCount;
         private int maxRetry;
+        private Long executionId;
     }
 }
