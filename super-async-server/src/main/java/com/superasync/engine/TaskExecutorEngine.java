@@ -1,20 +1,8 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- *  org.springframework.context.ApplicationEvent
- *  org.springframework.context.ApplicationEventPublisher
- *  org.springframework.stereotype.Component
- */
 package com.superasync.engine;
 
 import com.superasync.dto.TaskContext;
 import com.superasync.dto.TaskResult;
 import com.superasync.dto.TaskStatus;
-import com.superasync.engine.TaskReceiptEngine;
-import com.superasync.engine.TaskRetryEngine;
 import com.superasync.entity.AsyncTaskEntity;
 import com.superasync.event.TaskCompletedEvent;
 import com.superasync.repository.AsyncTaskRepository;
@@ -27,6 +15,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallbackWithoutResult;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
 public class TaskExecutorEngine {
@@ -36,6 +28,7 @@ public class TaskExecutorEngine {
     private final TaskRetryEngine retryEngine;
     private final TaskReceiptEngine receiptEngine;
     private final ApplicationEventPublisher eventPublisher;
+    private final TransactionTemplate transactionTemplate;
     private final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2, r -> {
         Thread t = new Thread(r);
         t.setName("super-async-exec-" + t.getId());
@@ -48,39 +41,50 @@ public class TaskExecutorEngine {
     }
 
     private void execute(Long taskId, TaskContext context, TaskExecutor executor) {
-        log.info("[Executor] Executing task id={}, type={}, retry={}", new Object[]{taskId, context.getTaskType(), context.getRetryCount()});
+        log.info("[Executor] Executing task id={}, type={}, retry={}", taskId, context.getTaskType(), context.getRetryCount());
         try {
             TaskResult result = executor.execute(context);
             if (result == null) {
                 result = TaskResult.ok(null);
             }
-            if (result.isSuccess()) {
-                this.taskRepository.completeTask(taskId, TaskStatus.SUCCESS.name(), result.getPayload(), null);
-                log.info("[Executor] Task id={} succeeded", (Object)taskId);
-                this.receiptEngine.fireSuccess(context, result);
-                this.publishEvent(taskId, context, true, result.getPayload(), null);
+            final TaskResult finalResult = result;
+            if (finalResult.isSuccess()) {
+                this.transactionTemplate.execute(new TransactionCallbackWithoutResult() {
+                    @Override
+                    protected void doInTransactionWithoutResult(TransactionStatus status) {
+                        taskRepository.completeTask(taskId, TaskStatus.SUCCESS.name(), finalResult.getPayload(), null);
+                    }
+                });
+                log.info("[Executor] Task id={} succeeded", taskId);
+                this.receiptEngine.fireSuccess(context, finalResult);
+                this.publishEvent(taskId, context, true, finalResult.getPayload(), null);
             } else {
-                log.warn("[Executor] Task id={} returned failure: {}", (Object)taskId, (Object)result.getErrorMsg());
-                this.handleFailure(taskId, context, result);
+                log.warn("[Executor] Task id={} returned failure: {}", taskId, finalResult.getErrorMsg());
+                this.handleFailure(taskId, context, finalResult);
             }
         }
         catch (Exception e) {
-            log.error("[Executor] Task id={} threw exception", (Object)taskId, (Object)e);
+            log.error("[Executor] Task id={} threw exception", taskId, e);
             TaskResult result = TaskResult.fail(e.getMessage());
             this.handleFailure(taskId, context, result);
         }
     }
 
     private void handleFailure(Long taskId, TaskContext context, TaskResult result) {
-        AsyncTaskEntity task = this.taskRepository.findByTaskId(taskId);
-        if (task != null && task.getRetryCount() < task.getMaxRetry()) {
-            this.retryEngine.scheduleRetry(task);
-        } else {
-            this.taskRepository.completeTask(taskId, TaskStatus.FAIL.name(), result.getPayload(), result.getErrorMsg());
-            log.error("[Executor] Task id={} failed after all retries", (Object)taskId);
-            this.receiptEngine.fireFailure(context, result);
-            this.publishEvent(taskId, context, false, result.getPayload(), result.getErrorMsg());
-        }
+        this.transactionTemplate.execute(new TransactionCallbackWithoutResult() {
+            @Override
+            protected void doInTransactionWithoutResult(TransactionStatus status) {
+                AsyncTaskEntity task = taskRepository.findByTaskId(taskId);
+                if (task != null && task.getRetryCount() < task.getMaxRetry()) {
+                    retryEngine.scheduleRetry(task);
+                } else {
+                    taskRepository.completeTask(taskId, TaskStatus.FAIL.name(), result.getPayload(), result.getErrorMsg());
+                    log.error("[Executor] Task id={} failed after all retries", taskId);
+                    receiptEngine.fireFailure(context, result);
+                    publishEvent(taskId, context, false, result.getPayload(), result.getErrorMsg());
+                }
+            }
+        });
     }
 
     private void publishEvent(Long taskId, TaskContext context, boolean success, String payload, String errorMsg) {
@@ -88,16 +92,16 @@ public class TaskExecutorEngine {
             this.eventPublisher.publishEvent((ApplicationEvent)new TaskCompletedEvent(this, taskId, context.getTaskType(), context.getTaskKey(), success, payload, errorMsg));
         }
         catch (Exception e) {
-            log.error("[Executor] Failed to publish event for taskId={}", (Object)taskId, (Object)e);
+            log.error("[Executor] Failed to publish event for taskId={}", taskId, e);
         }
     }
 
-    public TaskExecutorEngine(AsyncTaskRepository taskRepository, TaskDispatcherImpl dispatcher, TaskRetryEngine retryEngine, TaskReceiptEngine receiptEngine, ApplicationEventPublisher eventPublisher) {
+    public TaskExecutorEngine(AsyncTaskRepository taskRepository, TaskDispatcherImpl dispatcher, TaskRetryEngine retryEngine, TaskReceiptEngine receiptEngine, ApplicationEventPublisher eventPublisher, PlatformTransactionManager transactionManager) {
         this.taskRepository = taskRepository;
         this.dispatcher = dispatcher;
         this.retryEngine = retryEngine;
         this.receiptEngine = receiptEngine;
         this.eventPublisher = eventPublisher;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 }
-
