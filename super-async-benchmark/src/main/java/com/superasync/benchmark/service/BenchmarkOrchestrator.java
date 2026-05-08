@@ -338,7 +338,7 @@ public class BenchmarkOrchestrator {
                                     .build();
                             TaskResult result = superAsyncWorkerRegistry.execute(task.getTaskType(), ctx);
                             if (result == null) result = TaskResult.ok(null);
-                            superAsyncWorkerClient.complete(task.getTaskId(), result.isSuccess(), result.getPayload(), result.getErrorMsg());
+                            superAsyncWorkerClient.complete(task.getTaskId(), null, result.isSuccess(), result.getPayload(), result.getErrorMsg());
                         }
                     } catch (Exception e) {
                         // 忽略轮询异常
