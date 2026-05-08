@@ -6,6 +6,7 @@ import com.superasync.dto.TaskStatus;
 import com.superasync.entity.AsyncTaskEntity;
 import com.superasync.event.TaskCompletedEvent;
 import com.superasync.repository.AsyncTaskRepository;
+import com.superasync.service.JobExecutionService;
 import com.superasync.service.TaskExecutor;
 import com.superasync.service.impl.TaskDispatcherImpl;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +30,7 @@ public class TaskExecutorEngine {
     private final TaskReceiptEngine receiptEngine;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
+    private final JobExecutionService executionService;
     private final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2, r -> {
         Thread t = new Thread(r);
         t.setName("super-async-exec-" + t.getId());
@@ -42,6 +44,11 @@ public class TaskExecutorEngine {
 
     private void execute(Long taskId, TaskContext context, TaskExecutor executor) {
         log.info("[Executor] Executing task id={}, type={}, retry={}", taskId, context.getTaskType(), context.getRetryCount());
+        Long executionId = context.getExecutionId();
+        if (executionId != null) {
+            executionService.markProcessing(executionId);
+            executionService.appendLog(executionId, "INFO", String.format("[Executor] Start task id=%d type=%s retry=%d", taskId, context.getTaskType(), context.getRetryCount()));
+        }
         try {
             TaskResult result = executor.execute(context);
             if (result == null) {
@@ -56,15 +63,27 @@ public class TaskExecutorEngine {
                     }
                 });
                 log.info("[Executor] Task id={} succeeded", taskId);
+                if (executionId != null) {
+                    executionService.markCompleted(executionId, true, null);
+                    executionService.appendLog(executionId, "INFO", String.format("[Executor] Task id=%d succeeded", taskId));
+                }
                 this.receiptEngine.fireSuccess(context, finalResult);
                 this.publishEvent(taskId, context, true, finalResult.getPayload(), null);
             } else {
                 log.warn("[Executor] Task id={} returned failure: {}", taskId, finalResult.getErrorMsg());
+                if (executionId != null) {
+                    executionService.markCompleted(executionId, false, finalResult.getErrorMsg());
+                    executionService.appendLog(executionId, "ERROR", String.format("[Executor] Task id=%d failed: %s", taskId, finalResult.getErrorMsg()));
+                }
                 this.handleFailure(taskId, context, finalResult);
             }
         }
         catch (Exception e) {
             log.error("[Executor] Task id={} threw exception", taskId, e);
+            if (executionId != null) {
+                executionService.markCompleted(executionId, false, e.getMessage());
+                executionService.appendLog(executionId, "ERROR", String.format("[Executor] Task id=%d threw exception: %s", taskId, e.getMessage()));
+            }
             TaskResult result = TaskResult.fail(e.getMessage());
             this.handleFailure(taskId, context, result);
         }
@@ -96,12 +115,13 @@ public class TaskExecutorEngine {
         }
     }
 
-    public TaskExecutorEngine(AsyncTaskRepository taskRepository, TaskDispatcherImpl dispatcher, TaskRetryEngine retryEngine, TaskReceiptEngine receiptEngine, ApplicationEventPublisher eventPublisher, PlatformTransactionManager transactionManager) {
+    public TaskExecutorEngine(AsyncTaskRepository taskRepository, TaskDispatcherImpl dispatcher, TaskRetryEngine retryEngine, TaskReceiptEngine receiptEngine, ApplicationEventPublisher eventPublisher, PlatformTransactionManager transactionManager, JobExecutionService executionService) {
         this.taskRepository = taskRepository;
         this.dispatcher = dispatcher;
         this.retryEngine = retryEngine;
         this.receiptEngine = receiptEngine;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.executionService = executionService;
     }
 }
