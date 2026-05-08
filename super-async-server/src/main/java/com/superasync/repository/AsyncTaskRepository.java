@@ -58,5 +58,7 @@ extends JpaRepository<AsyncTaskEntity, Long> {
     public Page<AsyncTaskEntity> findByTaskType(String var1, Pageable var2);
 
     public Page<AsyncTaskEntity> findByStatusAndTaskType(String var1, String var2, Pageable var3);
+
+    public Page<AsyncTaskEntity> findByScheduledJobId(Long var1, Pageable var2);
 }
 
