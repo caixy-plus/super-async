@@ -2,7 +2,9 @@ package com.superasync.controller;
 
 import com.superasync.dto.Result;
 import com.superasync.entity.ScheduledJobEntity;
+import com.superasync.entity.ScheduledJobLogEntity;
 import com.superasync.repository.ScheduledJobRepository;
+import com.superasync.service.ScheduledJobLogService;
 import com.superasync.service.TaskDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class ScheduledJobController {
 
     private final ScheduledJobRepository jobRepository;
     private final TaskDispatcher taskDispatcher;
+    private final ScheduledJobLogService logService;
 
     @GetMapping
     public Result<Page<ScheduledJobEntity>> list(
@@ -145,6 +148,17 @@ public class ScheduledJobController {
             return Result.error(404, "任务不存在");
         }
         return Result.success();
+    }
+
+    @GetMapping("/{id}/logs")
+    public Result<Page<ScheduledJobLogEntity>> getJobLogs(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (!jobRepository.existsById(id)) {
+            return Result.error(404, "任务不存在");
+        }
+        return Result.success(logService.listByJobId(id, page, size));
     }
 
     private boolean isValidCron(String cron) {
