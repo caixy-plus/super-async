@@ -57,6 +57,10 @@ extends JpaRepository<AsyncTaskEntity, Long> {
 
     public Page<AsyncTaskEntity> findByTaskType(String var1, Pageable var2);
 
+    @Modifying
+    @Query(value = "DELETE FROM async_tasks WHERE status IN ('SUCCESS', 'FAIL') AND created_at < ?1", nativeQuery = true)
+    int deleteCompletedTasksBefore(OffsetDateTime var1);
+
     public Page<AsyncTaskEntity> findByStatusAndTaskType(String var1, String var2, Pageable var3);
 
     public Page<AsyncTaskEntity> findByScheduledJobId(Long var1, Pageable var2);

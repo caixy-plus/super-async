@@ -13,12 +13,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.support.CronExpression;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -144,6 +146,7 @@ public class ScheduledJobController {
     }
 
     @PostMapping("/{id}/toggle")
+    @Transactional
     public Result<Void> toggle(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
         Boolean enabled = body.get("enabled");
         if (enabled == null) {
@@ -165,6 +168,16 @@ public class ScheduledJobController {
             return Result.error(404, "任务不存在");
         }
         return Result.success(logService.listByJobId(id, page, size));
+    }
+
+    @GetMapping("/worker-tags")
+    public Result<List<String>> getWorkerTags() {
+        List<String> tags = jobRepository.findAll().stream()
+                .map(ScheduledJobEntity::getWorkerTag)
+                .filter(tag -> tag != null && !tag.isBlank())
+                .distinct()
+                .toList();
+        return Result.success(tags);
     }
 
     private boolean isValidCron(String cron) {

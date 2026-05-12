@@ -5,6 +5,7 @@ import com.superasync.entity.JobExecutionLogEntity;
 import com.superasync.repository.JobExecutionLogRepository;
 import com.superasync.repository.JobExecutionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class JobExecutionService {
@@ -21,6 +23,9 @@ public class JobExecutionService {
     private final JobExecutionRepository executionRepository;
     private final JobExecutionLogRepository logRepository;
     private final SseEmitterManager sseEmitterManager;
+
+    @org.springframework.beans.factory.annotation.Value("${superasync.retention.executions-days:30}")
+    private int retentionDays;
 
     @Transactional
     public JobExecutionEntity startExecution(Long scheduledJobId) {
@@ -79,6 +84,13 @@ public class JobExecutionService {
         OffsetDateTime sevenDaysAgo = OffsetDateTime.now().minusDays(7);
         logRepository.deleteLogsByJobIdAndTriggerTimeBefore(scheduledJobId, sevenDaysAgo);
         executionRepository.deleteByJobIdAndTriggerTimeBefore(scheduledJobId, sevenDaysAgo);
+
+        // 超时超过 1 小时仍未执行的 PENDING 记录标记为 TIMEOUT
+        OffsetDateTime oneHourAgo = OffsetDateTime.now().minusHours(1);
+        int timedOut = executionRepository.timeoutStalePendingExecutions(scheduledJobId, oneHourAgo);
+        if (timedOut > 0) {
+            log.warn("[JobExecution] Marked {} stale PENDING execution(s) as TIMEOUT for jobId={}", timedOut, scheduledJobId);
+        }
 
         long count = executionRepository.countByScheduledJobId(scheduledJobId);
         if (count >= 100) {

@@ -45,3 +45,9 @@ superasync:
   timeout:
     check-interval-ms: 60000
     default-timeout-minutes: 10
+  retention:
+    enabled: true
+    cron: "0 0 2 * * ?"
+    async-tasks-days: 30
+    executions-days: 30
+    scheduler-logs-days: 30

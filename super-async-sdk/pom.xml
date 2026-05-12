@@ -13,7 +13,7 @@
 
     <groupId>com.superasync</groupId>
     <artifactId>super-async-sdk</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.2</version>
     <name>super-async-sdk</name>
     <description>SuperAsync client and worker SDK</description>
 
@@ -43,6 +43,17 @@
             <optional>true</optional>
         </dependency>
     </dependencies>
+
+    <distributionManagement>
+        <repository>
+            <id>gitlab-maven</id>
+            <url>https://gitlab.local.caixy.xin/api/v4/projects/9/packages/maven</url>
+        </repository>
+        <snapshotRepository>
+            <id>gitlab-maven</id>
+            <url>https://gitlab.local.caixy.xin/api/v4/projects/9/packages/maven</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <build>
         <plugins>

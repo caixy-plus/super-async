@@ -11,6 +11,7 @@ public class TaskContext {
     private int retryCount;
     private int maxRetry;
     private Long executionId;
+    private java.util.function.BiConsumer<String, String> logAppender;
 
     TaskContext(Long taskId, String taskType, String taskKey, String payload, int retryCount, int maxRetry, Long executionId) {
         this.taskId = taskId;
@@ -52,6 +53,16 @@ public class TaskContext {
 
     public Long getExecutionId() {
         return this.executionId;
+    }
+
+    public void log(String level, String message) {
+        if (this.logAppender != null) {
+            this.logAppender.accept(level, message);
+        }
+    }
+
+    public void setLogAppender(java.util.function.BiConsumer<String, String> logAppender) {
+        this.logAppender = logAppender;
     }
 
     public void setTaskId(Long taskId) {

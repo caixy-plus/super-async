@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
+import com.superasync.worker.logging.LogEntry;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -112,6 +114,67 @@ public class SuperAsyncWorkerClient {
             log.error("[WorkerClient] PollBatch failed", e);
             return null;
         }
+    }
+
+    /**
+     * 上报执行日志
+     */
+    public void appendLog(Long executionId, String level, String message) {
+        String url = properties.getServerUrl() + "/v1/worker/appendLog";
+        Map<String, Object> body = new HashMap<>();
+        body.put("executionId", executionId);
+        body.put("level", level);
+        body.put("message", message);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            restTemplate.postForEntity(url, entity, Map.class);
+        } catch (Exception e) {
+            log.error("[WorkerClient] Append log for execution {} failed", executionId, e);
+        }
+    }
+
+    /**
+     * 批量上报执行日志
+     */
+    public void appendLogBatch(List<LogEntry> entries) {
+        String url = properties.getServerUrl() + "/v1/worker/appendLogBatch";
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (LogEntry entry : entries) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("executionId", entry.getExecutionId());
+            body.put("level", entry.getLevel());
+            body.put("message", entry.getMessage());
+            list.add(body);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<List<Map<String, Object>>> entity = new HttpEntity<>(list, headers);
+
+        try {
+            restTemplate.postForEntity(url, entity, Map.class);
+        } catch (Exception e) {
+            log.error("[WorkerClient] Append log batch failed", e);
+        }
+    }
+
+    /**
+     * 获取调度器中所有定时任务的 workerTag 列表
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> fetchScheduledJobTags() {
+        String url = properties.getServerUrl() + "/v1/scheduled-jobs/worker-tags";
+        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+        Map<String, Object> result = response.getBody();
+        if (result == null || !Integer.valueOf(0).equals(result.get("code"))) {
+            return List.of();
+        }
+        List<String> data = (List<String>) result.get("data");
+        return data != null ? data : List.of();
     }
 
     /**

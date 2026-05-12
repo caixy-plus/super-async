@@ -24,4 +24,12 @@ public interface JobExecutionRepository extends JpaRepository<JobExecutionEntity
     @Modifying
     @Query(value = "DELETE FROM job_executions WHERE scheduled_job_id = ?1 AND id NOT IN (SELECT id FROM job_executions WHERE scheduled_job_id = ?1 ORDER BY trigger_time DESC LIMIT 100)", nativeQuery = true)
     int keepOnlyLatestExecutions(Long scheduledJobId);
+
+    @Modifying
+    @Query(value = "UPDATE job_executions SET status = 'TIMEOUT', end_time = NOW() WHERE scheduled_job_id = ?1 AND status = 'PENDING' AND trigger_time < ?2", nativeQuery = true)
+    int timeoutStalePendingExecutions(Long scheduledJobId, OffsetDateTime cutoff);
+
+    @Modifying
+    @Query(value = "DELETE FROM job_executions WHERE trigger_time < ?1", nativeQuery = true)
+    int deleteExecutionsBefore(OffsetDateTime cutoff);
 }

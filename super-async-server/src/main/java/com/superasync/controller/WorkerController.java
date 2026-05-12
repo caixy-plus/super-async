@@ -87,6 +87,31 @@ public class WorkerController {
         return Result.success(result);
     }
 
+    @PostMapping(value={"/appendLog"})
+    @Transactional
+    public Result<Void> appendLog(@RequestBody AppendLogRequest request) {
+        if (request.getExecutionId() == null) {
+            return Result.error(400, "executionId 不能为空");
+        }
+        executionService.appendLog(request.getExecutionId(), request.getLevel(), request.getMessage());
+        return Result.success();
+    }
+
+    @PostMapping(value={"/appendLogBatch"})
+    @Transactional
+    public Result<Void> appendLogBatch(@RequestBody List<AppendLogRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return Result.success();
+        }
+        for (AppendLogRequest request : requests) {
+            if (request.getExecutionId() == null) {
+                continue;
+            }
+            executionService.appendLog(request.getExecutionId(), request.getLevel(), request.getMessage());
+        }
+        return Result.success();
+    }
+
     @PostMapping(value={"/complete"})
     @Transactional
     public Result<Void> complete(@RequestBody CompleteRequest request) {
@@ -324,6 +349,36 @@ public class WorkerController {
 
         public String toString() {
             return "WorkerController.WorkerTask(taskId=" + this.getTaskId() + ", taskType=" + this.getTaskType() + ", taskKey=" + this.getTaskKey() + ", payload=" + this.getPayload() + ", retryCount=" + this.getRetryCount() + ", maxRetry=" + this.getMaxRetry() + ", executionId=" + this.getExecutionId() + ")";
+        }
+    }
+
+    public static class AppendLogRequest {
+        private Long executionId;
+        private String level;
+        private String message;
+
+        public Long getExecutionId() {
+            return this.executionId;
+        }
+
+        public String getLevel() {
+            return this.level;
+        }
+
+        public String getMessage() {
+            return this.message;
+        }
+
+        public void setExecutionId(Long executionId) {
+            this.executionId = executionId;
+        }
+
+        public void setLevel(String level) {
+            this.level = level;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
         }
     }
 

@@ -20,6 +20,7 @@
   - [定时任务](#定时任务)
 - [性能测试报告](#性能测试报告)
 - [模块说明](#模块说明)
+- [发布 SDK](#发布-sdk)
 - [开源协议](#开源协议)
 
 ---
@@ -373,8 +374,14 @@ superasync:
     server-url: http://localhost:8080    # Server 地址
     core-pool-size: 16                   # Worker 执行线程池大小
     poll-interval-ms: 3000               # Worker 轮询间隔（默认 3s）
-    tags:                                # Worker 标签，用于任务路由
+    tags:                                # Worker 标签，用于任务路由（可选，未配置时自动从注解和定时任务获取）
       - PAYMENT_WORKER
+  retention:
+    enabled: true                        # 是否启用历史数据自动清理
+    cron: "0 0 2 * * ?"                  # 清理执行时间（默认每天凌晨 2 点）
+    async-tasks-days: 30                 # 异步任务记录保留天数（默认 1 个月）
+    executions-days: 30                  # 执行记录及关联日志保留天数
+    scheduler-logs-days: 30              # 调度器日志保留天数
 ```
 
 ### 关键行为说明
@@ -404,6 +411,36 @@ super-async/
     ├── BenchmarkTaskController# 双模式任务处理器示例
     └── BenchmarkReport        # 性能指标与报告生成
 ```
+
+---
+
+## 发布 SDK
+
+`super-async-sdk` 已配置 `distributionManagement`，可直接发布到私有 Maven 仓库：
+
+```bash
+cd super-async-sdk
+mvn clean deploy
+```
+
+- Release 版本（如 `1.1.0`）**不可重复发布**，发版前需递增版本号
+- Snapshot 版本（如 `1.1.0-SNAPSHOT`）可反复覆盖发布
+
+### 作为依赖使用
+
+项目 `pom.xml` 中直接声明依赖即可，**无需配置 `<repositories>`**：
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>com.superasync</groupId>
+        <artifactId>super-async-sdk</artifactId>
+        <version>1.1.0</version>
+    </dependency>
+</dependencies>
+```
+
+私有仓库地址和认证已通过 `~/.m2/settings.xml` 全局配置，各项目无需重复配置。
 
 ---
 
