@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperAsync - 通用异步任务调度平台</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;background:#070b14;color:#c8d0dc;line-height:1.6;overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+
+/* Animations */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes flowParticle{0%{offset-distance:0%;opacity:1}100%{offset-distance:100%;opacity:0.3}}
+@keyframes nodePulse{0%,100%{box-shadow:0 0 0 0 rgba(6,182,212,.3)}50%{box-shadow:0 0 0 12px rgba(6,182,212,0)}}
+@keyframes dataStream{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@keyframes counterUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pipelineFlow{0%{stroke-dashoffset:100}100%{stroke-dashoffset:0}}
+@keyframes gridPulse{0%,100%{opacity:.02}50%{opacity:.04}}
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .6s ease-out,transform .6s ease-out}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* Background grid */
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(6,182,212,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(6,182,212,.02) 1px,transparent 1px);background-size:80px 80px;animation:gridPulse 4s ease-in-out infinite}
+
+/* Nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;background:rgba(7,11,20,.9);backdrop-filter:blur(16px);border-bottom:1px solid rgba(6,182,212,.1)}
+.nav-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;color:#fff;letter-spacing:-.3px}
+.nav-logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:12px;font-weight:700;color:#fff}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{color:#6b7b8f;font-size:14px;transition:color .2s}
+.nav-links a:hover{color:#22d3ee}
+.nav-github{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#070b14;padding:8px 18px;border-radius:8px;font-size:14px;font-weight:600;transition:background .2s}
+.nav-github:hover{background:#e0f2fe}
+.nav-toggle{display:none;color:#fff;background:none;border:none;font-size:24px}
+
+/* Hero */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 32px 80px;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 30%,rgba(6,182,212,.06) 0%,transparent 60%)}
+.container{max-width:1200px;margin:0 auto;width:100%;position:relative;z-index:1}
+.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.15);border-radius:100px;padding:8px 18px;font-size:13px;color:#22d3ee;margin-bottom:28px;font-weight:500}
+.hero h1{font-size:clamp(2.2rem,4.5vw,3.4rem);font-weight:800;line-height:1.1;letter-spacing:-1px;color:#fff;margin-bottom:20px}
+.hero h1 .accent{background:linear-gradient(135deg,#06b6d4,#22d3ee);-webkit-background-fill-color:transparent;-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero>p{color:#6b7b8f;font-size:17px;line-height:1.7;margin-bottom:36px;max-width:480px}
+.hero-buttons{display:flex;gap:14px}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 24px rgba(6,182,212,.25);border:none}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 32px rgba(6,182,212,.4)}
+.btn-secondary{display:inline-flex;align-items:center;gap:8px;background:rgba(6,182,212,.05);color:#22d3ee;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:500;border:1px solid rgba(6,182,212,.2);transition:all .2s}
+.btn-secondary:hover{background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.4)}
+
+/* Pipeline Visual */
+.pipeline-visual{position:relative;height:360px;display:flex;flex-direction:column;justify-content:center;gap:32px}
+.pipeline-row{display:flex;align-items:center;gap:16px;position:relative}
+.pipeline-node{flex:1;background:rgba(6,182,212,.04);border:1px solid rgba(6,182,212,.15);border-radius:12px;padding:16px 20px;text-align:center;position:relative;transition:all .3s;animation:nodePulse 3s ease-in-out infinite}
+.pipeline-node:hover{border-color:rgba(6,182,212,.4);background:rgba(6,182,212,.08)}
+.pipeline-node h4{font-size:13px;font-weight:600;color:#fff;margin-bottom:4px}
+.pipeline-node p{font-size:11px;color:#6b7b8f}
+.pipeline-connector{position:absolute;top:50%;right:-20px;width:32px;height:2px;background:linear-gradient(90deg,#06b6d4,transparent);z-index:1}
+.pipeline-connector::after{content:'';position:absolute;right:0;top:-3px;width:0;height:0;border-left:6px solid #06b6d4;border-top:4px solid transparent;border-bottom:4px solid transparent}
+.flow-line{position:absolute;height:2px;background:linear-gradient(90deg,transparent,#06b6d4,transparent);animation:dataStream 2s linear infinite}
+.flow-line:nth-child(1){top:35%;left:0;right:0}
+.flow-line:nth-child(2){top:65%;left:0;right:0;animation-delay:.5s}
+
+/* Stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px}
+.stat-item{background:rgba(6,182,212,.03);border:1px solid rgba(6,182,212,.08);border-radius:12px;padding:20px;text-align:center;animation:counterUp .6s ease-out both}
+.stat-item:nth-child(1){animation-delay:.1s}.stat-item:nth-child(2){animation-delay:.2s}
+.stat-item:nth-child(3){animation-delay:.3s}.stat-item:nth-child(4){animation-delay:.4s}
+.stat-value{font-size:28px;font-weight:800;color:#22d3ee;line-height:1;font-variant-numeric:tabular-nums}
+.stat-label{font-size:12px;color:#6b7b8f;margin-top:6px}
+
+/* Sections */
+.section{padding:80px 32px;position:relative}
+.section-header{text-align:center;margin-bottom:56px}
+.section-header h2{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;color:#fff;margin-bottom:10px}
+.section-header p{color:#6b7b8f;font-size:17px}
+
+/* Mode cards */
+.modes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.mode-card{background:rgba(6,182,212,.03);border:1px solid rgba(6,182,212,.1);border-radius:16px;padding:36px;position:relative;overflow:hidden;transition:all .3s}
+.mode-card:hover{border-color:rgba(6,182,212,.25);transform:translateY(-3px)}
+.mode-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#06b6d4,#22d3ee)}
+.mode-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.15);border-radius:100px;padding:4px 12px;font-size:12px;color:#22d3ee;margin-bottom:16px;font-weight:500}
+.mode-card h3{font-size:20px;font-weight:700;color:#fff;margin-bottom:12px}
+.mode-card p{font-size:14px;color:#6b7b8f;line-height:1.7;margin-bottom:16px}
+.mode-features{list-style:none}
+.mode-features li{display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;margin-bottom:8px}
+.mode-features li::before{content:'\2713';color:#06b6d4;font-weight:700}
+
+/* Features */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.feature-card{background:rgba(6,182,212,.02);border:1px solid rgba(6,182,212,.08);border-radius:12px;padding:28px;transition:all .3s}
+.feature-card:hover{border-color:rgba(6,182,212,.2);background:rgba(6,182,212,.04)}
+.feature-icon{width:44px;height:44px;border-radius:10px;background:rgba(6,182,212,.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:#22d3ee}
+.feature-icon svg{width:22px;height:22px}
+.feature-card h3{font-size:16px;font-weight:600;color:#fff;margin-bottom:8px}
+.feature-card p{font-size:13px;color:#6b7b8f;line-height:1.7}
+
+/* Architecture SVG */
+.arch-container{background:rgba(6,182,212,.02);border:1px solid rgba(6,182,212,.1);border-radius:16px;padding:40px;overflow-x:auto}
+.arch-svg{min-width:600px;width:100%}
+
+/* Tech stack */
+.tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.tech-card{background:rgba(6,182,212,.02);border:1px solid rgba(6,182,212,.08);border-radius:12px;padding:24px;transition:all .3s}
+.tech-card:hover{border-color:rgba(6,182,212,.2)}
+.tech-card h4{font-size:15px;font-weight:600;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.tech-dot{width:10px;height:10px;border-radius:50%;background:#06b6d4;display:inline-block}
+.tech-card p{font-size:13px;color:#6b7b8f}
+
+/* Install */
+.install-grid{display:grid;grid-template-columns:1fr;gap:20px;max-width:800px;margin:0 auto}
+.install-card{background:rgba(6,182,212,.02);border:1px solid rgba(6,182,212,.1);border-radius:16px;padding:28px}
+.install-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.install-header h4{font-size:16px;font-weight:600;color:#fff}
+.install-header span{font-size:13px;color:#6b7b8f;margin-left:auto}
+.code-block{background:#0c1220;border-radius:10px;padding:20px;font-family:'SF Mono','Fira Code',monospace;font-size:13px;color:#d0d8e4;line-height:1.8;position:relative;overflow-x:auto}
+.code-block .copy-btn{position:absolute;top:12px;right:12px;padding:6px 12px;border-radius:6px;background:rgba(6,182,212,.1);color:#6b7b8f;font-size:12px;border:none;cursor:pointer;transition:all .2s}
+.code-block .copy-btn:hover{background:rgba(6,182,212,.2);color:#22d3ee}
+.copy-btn.copied{background:#22c55e;color:#fff}
+.code-block .comment{color:#4b5a6e;font-style:italic}.code-block .cmd{color:#fff}.code-block .dir{color:#22d3ee}.code-block .arg{color:#a78bfa}
+
+/* Modules */
+.modules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.module-card{background:rgba(6,182,212,.02);border:1px solid rgba(6,182,212,.08);border-radius:12px;padding:24px;text-align:center;transition:all .3s}
+.module-card:hover{border-color:rgba(6,182,212,.2);transform:translateY(-2px)}
+.module-icon{width:40px;height:40px;margin:0 auto 12px;color:#22d3ee}
+.module-card h4{font-size:15px;font-weight:600;color:#fff;margin-bottom:4px}
+.module-card p{font-size:12px;color:#6b7b8f}
+
+/* Footer */
+.footer{border-top:1px solid rgba(6,182,212,.1);padding:48px 32px 24px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:32px;margin-bottom:40px}
+.footer-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px;color:#fff;font-weight:700;font-size:16px}
+.footer-brand .icon{width:28px;height:28px;background:linear-gradient(135deg,#06b6d4,#0891b2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;font-weight:700;color:#fff}
+.footer h4{color:#fff;font-size:14px;font-weight:600;margin-bottom:16px}
+.footer ul{list-style:none}.footer li{margin-bottom:10px;font-size:14px}
+.footer a{color:#6b7b8f;display:flex;align-items:center;gap:6px;transition:color .2s;text-decoration:none}
+.footer a:hover{color:#22d3ee}
+.footer-bottom{padding-top:24px;border-top:1px solid rgba(6,182,212,.08);display:flex;justify-content:space-between;font-size:13px;color:#4b5a6e}
+
+/* Responsive */
+@media(max-width:768px){
+.nav-links{display:none;position:absolute;top:64px;left:0;right:0;background:rgba(7,11,20,.95);padding:20px 32px;flex-direction:column;gap:16px;border-bottom:1px solid rgba(6,182,212,.1)}
+.nav-links.active{display:flex}.nav-toggle{display:block}
+.hero-grid{grid-template-columns:1fr}.hero{padding:100px 20px 40px}
+.section{padding:60px 20px}
+.stats-bar{grid-template-columns:repeat(2,1fr)}
+.footer-grid{grid-template-columns:1fr}
+.pipeline-visual{height:auto;gap:16px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+
+<nav class="nav" id="nav">
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">SA</div>
+    <span>SuperAsync</span>
+  </a>
+  <button class="nav-toggle" onclick="document.getElementById('navLinks').classList.toggle('active')">&#9776;</button>
+  <div class="nav-links" id="navLinks">
+    <a href="#modes">模式</a>
+    <a href="#features">特性</a>
+    <a href="#modules">模块</a>
+    <a href="#install">安装</a>
+    <a href="https://github.com/caixy-plus/super-async" target="_blank" class="nav-github">GitHub</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge">
+          <span style="width:8px;height:8px;background:#06b6d4;border-radius:50%;display:inline-block;animation:nodePulse 2s infinite"></span>
+          <span>v1.1.2 · Apache 2.0</span>
+        </div>
+        <h1><span class="accent">SuperAsync</span><br>通用异步任务调度平台</h1>
+        <p>高吞吐、低延迟、可水平扩展的分布式任务调度与执行框架。支持 Server 本地模式与 Worker 远程模式，面向生产环境设计。</p>
+        <div class="hero-buttons">
+          <a href="#install" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            快速开始
+          </a>
+          <a href="https://github.com/caixy-plus/super-async" target="_blank" class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            查看源码
+          </a>
+        </div>
+        <div class="stats-bar">
+          <div class="stat-item"><div class="stat-value">10K+</div><div class="stat-label">TPS 吞吐</div></div>
+          <div class="stat-item"><div class="stat-value">&lt;5ms</div><div class="stat-label">调度延迟</div></div>
+          <div class="stat-item"><div class="stat-value">99.9%</div><div class="stat-label">可用性</div></div>
+          <div class="stat-item"><div class="stat-value">H</div><div class="stat-label">水平扩展</div></div>
+        </div>
+      </div>
+      <div class="pipeline-visual reveal">
+        <div class="flow-line"></div>
+        <div class="flow-line"></div>
+        <div class="pipeline-row">
+          <div class="pipeline-node"><h4>Task Producer</h4><p>任务生产者</p></div>
+          <div class="pipeline-node"><h4>Scheduler</h4><p>任务调度器</p><div class="pipeline-connector"></div></div>
+          <div class="pipeline-node"><h4>Dispatcher</h4><p>分发路由器</p></div>
+        </div>
+        <div class="pipeline-row">
+          <div class="pipeline-node"><h4>Local Worker</h4><p>同进程执行</p></div>
+          <div class="pipeline-node"><h4>Remote Worker</h4><p>HTTP 远程调用</p><div class="pipeline-connector"></div></div>
+          <div class="pipeline-node"><h4>Monitor</h4><p>监控与告警</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="modes">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>双执行模式</h2>
+      <p>灵活适配不同业务场景</p>
+    </div>
+    <div class="modes-grid">
+      <div class="mode-card reveal">
+        <div class="mode-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Server 本地模式
+        </div>
+        <h3>单机高吞吐</h3>
+        <p>调度器与执行器同进程运行，消除网络开销，适合对延迟极度敏感的单机场景。</p>
+        <ul class="mode-features">
+          <li>调度器与执行器同进程</li>
+          <li>零网络延迟</li>
+          <li>单机最高吞吐</li>
+          <li>内存级任务传递</li>
+        </ul>
+      </div>
+      <div class="mode-card reveal">
+        <div class="mode-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+          Worker 远程模式
+        </div>
+        <h3>水平可扩展</h3>
+        <p>调度器通过 HTTP 向独立 Worker 分发任务，支持动态扩缩容，适合大规模分布式场景。</p>
+        <ul class="mode-features">
+          <li>HTTP 任务分发</li>
+          <li>Worker 动态扩缩容</li>
+          <li>多节点负载均衡</li>
+          <li>故障自动转移</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>核心特性</h2>
+      <p>面向生产环境的企业级能力</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
+        <h3>高吞吐调度</h3>
+        <p>优化的调度引擎，支持每秒万级任务分发，满足高并发业务需求。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3>低延迟执行</h3>
+        <p>毫秒级任务响应，本地模式消除网络开销，远程模式优化传输协议。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>水平扩展</h3>
+        <p>支持集群部署，随业务增长弹性扩容，Worker 节点动态上下线。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>任务监控</h3>
+        <p>完整的任务状态追踪、执行日志和实时监控面板，任务状态一目了然。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>容错机制</h3>
+        <p>自动重试、死信队列、任务超时处理，保障任务最终完成。</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+        <h3>SDK 接入</h3>
+        <p>提供 Java SDK，极简 API 调用，几行代码即可接入任务调度平台。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>系统架构</h2>
+      <p>模块化设计，清晰分层</p>
+    </div>
+    <div class="arch-container reveal">
+      <svg class="arch-svg" viewBox="0 0 800 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background grid -->
+        <defs>
+          <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#06b6d4" stop-opacity=".3"/><stop offset="100%" stop-color="#22d3ee" stop-opacity=".8"/></linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <!-- Layer boxes -->
+        <rect x="20" y="20" width="760" height="80" rx="8" fill="rgba(6,182,212,.04)" stroke="rgba(6,182,212,.15)"/>
+        <text x="400" y="45" text-anchor="middle" fill="#22d3ee" font-size="12" font-weight="600">API 层</text>
+        <rect x="100" y="58" width="120" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="160" y="77" text-anchor="middle" fill="#c8d0dc" font-size="11">Task API</text>
+        <rect x="340" y="58" width="120" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="400" y="77" text-anchor="middle" fill="#c8d0dc" font-size="11">Schedule API</text>
+        <rect x="580" y="58" width="120" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="640" y="77" text-anchor="middle" fill="#c8d0dc" font-size="11">Query API</text>
+
+        <!-- Arrow -->
+        <line x1="400" y1="100" x2="400" y2="120" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <polygon points="400,126 396,118 404,118" fill="#06b6d4"/>
+
+        <!-- Scheduler Layer -->
+        <rect x="20" y="130" width="760" height="80" rx="8" fill="rgba(6,182,212,.04)" stroke="rgba(6,182,212,.15)"/>
+        <text x="400" y="155" text-anchor="middle" fill="#22d3ee" font-size="12" font-weight="600">调度核心层</text>
+        <rect x="80" y="168" width="140" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="150" y="187" text-anchor="middle" fill="#c8d0dc" font-size="11">Task Scheduler</text>
+        <rect x="330" y="168" width="140" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="400" y="187" text-anchor="middle" fill="#c8d0dc" font-size="11">Dispatcher</text>
+        <rect x="580" y="168" width="140" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="650" y="187" text-anchor="middle" fill="#c8d0dc" font-size="11">Retry Manager</text>
+
+        <!-- Arrow -->
+        <line x1="400" y1="210" x2="400" y2="230" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <polygon points="400,236 396,228 404,228" fill="#06b6d4"/>
+
+        <!-- Worker Layer -->
+        <rect x="20" y="240" width="760" height="60" rx="8" fill="rgba(6,182,212,.04)" stroke="rgba(6,182,212,.15)"/>
+        <text x="80" y="265" fill="#22d3ee" font-size="12" font-weight="600">执行层</text>
+        <rect x="160" y="255" width="130" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="#06b6d4"/>
+        <text x="225" y="274" text-anchor="middle" fill="#c8d0dc" font-size="11">Local Worker</text>
+        <rect x="420" y="255" width="130" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="#06b6d4"/>
+        <text x="485" y="274" text-anchor="middle" fill="#c8d0dc" font-size="11">Remote Worker</text>
+        <rect x="640" y="255" width="120" height="30" rx="6" fill="rgba(6,182,212,.06)" stroke="rgba(6,182,212,.2)"/>
+        <text x="700" y="274" text-anchor="middle" fill="#c8d0dc" font-size="11">Monitor</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="modules">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>项目模块</h2>
+      <p>清晰的模块化设计</p>
+    </div>
+    <div class="modules-grid">
+      <div class="module-card reveal">
+        <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+        <h4>super-async-server</h4>
+        <p>调度服务端</p>
+      </div>
+      <div class="module-card reveal">
+        <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></div>
+        <h4>super-async-sdk</h4>
+        <p>Java 接入 SDK</p>
+      </div>
+      <div class="module-card reveal">
+        <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20z"/><path d="M12 6v6l4 2"/></svg></div>
+        <h4>super-async-benchmark</h4>
+        <p>性能测试</p>
+      </div>
+      <div class="module-card reveal">
+        <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+        <h4>K8s</h4>
+        <p>容器编排配置</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="install">
+  <div class="container">
+    <div class="section-header reveal">
+      <h2>快速开始</h2>
+      <p>本地启动或容器化部署</p>
+    </div>
+    <div class="install-grid">
+      <div class="install-card reveal">
+        <div class="install-header"><h4>Maven 依赖</h4><span>推荐</span></div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="doCopy(this)">复制</button>
+<span class="comment">&lt;!-- pom.xml --&gt;</span>
+<span class="cmd">&lt;dependency&gt;</span>
+<span class="cmd">  &lt;groupId&gt;com.caixinyun&lt;/groupId&gt;</span>
+<span class="cmd">  &lt;artifactId&gt;super-async-sdk&lt;/artifactId&gt;</span>
+<span class="cmd">  &lt;version&gt;1.1.2&lt;/version&gt;</span>
+<span class="cmd">&lt;/dependency&gt;</span>
+        </div>
+      </div>
+      <div class="install-card reveal">
+        <div class="install-header"><h4>Docker 启动</h4><span>快速</span></div>
+        <div class="code-block">
+          <button class="copy-btn" onclick="doCopy(this)">复制</button>
+<span class="comment"># 启动 Server</span>
+<span class="cmd">docker run -p 8080:8080 \</span>
+<span class="cmd">  -e DB_URL=postgresql://db:5432/sa \</span>
+<span class="cmd">  -e REDIS_URL=redis://redis:6379 \</span>
+<span class="dir">  caixinyun/super-async-server:1.1.2</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand"><div class="icon">SA</div>SuperAsync</div>
+        <p style="font-size:14px;color:#6b7b8f">通用异步任务调度平台 — 高吞吐、低延迟、可水平扩展</p>
+      </div>
+      <div>
+        <h4>模块</h4>
+        <ul>
+          <li><a href="https://github.com/caixy-plus/super-async">Server</a></li>
+          <li><a href="https://github.com/caixy-plus/super-async">SDK</a></li>
+          <li><a href="https://github.com/caixy-plus/super-async">Benchmark</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>资源</h4>
+        <ul>
+          <li><a href="https://github.com/caixy-plus/super-async">GitHub</a></li>
+          <li><a href="https://github.com/caixy-plus/super-async/issues">Issues</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>协议</h4>
+        <ul><li>Apache 2.0</li><li>Java 99.6%</li></ul>
+      </div>
+    </div>
+    <div class="footer-bottom"><span>&copy; 2026 SuperAsync</span><span>by caixinyun</span></div>
+  </div>
+</footer>
+
+<script>
+const reveals=document.querySelectorAll('.reveal');
+const observer=new IntersectionObserver((entries)=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');observer.unobserve(e.target)}})},{threshold:.1});
+reveals.forEach(el=>observer.observe(el));
+async function doCopy(btn){
+  const block=btn.parentElement;
+  const text=Array.from(block.querySelectorAll('.cmd,.dir')).map(e=>e.textContent).join('\n');
+  try{await navigator.clipboard.writeText(text)}catch(e){const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t)}
+  btn.classList.add('copied');btn.textContent='\u2713';setTimeout(()=>{btn.classList.remove('copied');btn.textContent='\u590d\u5236'},2000);
+}
+</script>
+</body>
+</html>
