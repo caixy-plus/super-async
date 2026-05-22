@@ -39,8 +39,29 @@ implements TaskDispatcher {
     @Transactional
     public Long submit(TaskRequest request) {
         AsyncTaskEntity existing = this.taskRepository.findByTaskKey(request.getTaskKey());
-        if (existing != null) {
+        if (existing != null && !isTerminalStatus(existing.getStatus())) {
             log.info("[TaskDispatcher] Idempotent hit, taskId={} key={}", (Object)existing.getId(), (Object)request.getTaskKey());
+            return existing.getId();
+        }
+        if (existing != null && isTerminalStatus(existing.getStatus())) {
+            existing.setStatus(TaskStatus.PENDING.name());
+            existing.setPayload(request.getPayload());
+            existing.setPriority(request.getPriority().value());
+            existing.setMaxRetry(request.getMaxRetry());
+            existing.setWorkerTag(request.getWorkerTag());
+            existing.setScheduledJobId(request.getScheduledJobId());
+            existing.setExecutionId(request.getExecutionId());
+            existing.setExecuteAt(OffsetDateTime.now().plus(request.getDelay()));
+            existing.setTimeoutAt(OffsetDateTime.now().plus(request.getDelay()).plus(request.getTimeout()));
+            existing.setRetryCount(0);
+            existing.setResultPayload(null);
+            existing.setErrorMsg(null);
+            existing.setWorkerNode(null);
+            existing.setUpdatedAt(OffsetDateTime.now());
+            this.taskRepository.save(existing);
+            log.info("[TaskDispatcher] Resurrected terminal task id={}, type={}, key={}",
+                existing.getId(), existing.getTaskType(), existing.getTaskKey());
+            this.eventPublisher.publishEvent(new TaskSubmittedEvent(this, existing.getId()));
             return existing.getId();
         }
         AsyncTaskEntity task = new AsyncTaskEntity();
@@ -83,6 +104,14 @@ implements TaskDispatcher {
 
     public boolean hasExecutor(String taskType) {
         return this.executors.containsKey(taskType);
+    }
+
+    private boolean isTerminalStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String upper = status.toUpperCase();
+        return "SUCCESS".equals(upper) || "FAIL".equals(upper) || "TIMEOUT".equals(upper);
     }
 
     public TaskDispatcherImpl(AsyncTaskRepository taskRepository, ApplicationEventPublisher eventPublisher) {
